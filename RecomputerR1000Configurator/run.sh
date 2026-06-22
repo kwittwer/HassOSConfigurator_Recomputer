@@ -14,6 +14,7 @@ readonly R100X_OVERLAY_DTS_FILE="${WORK_DIR}/${R100X_OVERLAY_NAME}-overlay.dts"
 readonly R100X_OVERLAY_DTBO_FILE="${WORK_DIR}/${R100X_OVERLAY_NAME}.dtbo"
 
 REBOOT_REQUIRED=0
+MQTT_BRIDGE_PID=""
 
 log() {
   local level="$1"
@@ -107,12 +108,13 @@ start_mqtt_bridge() {
 
   existing_pid="$(pgrep -f "/server.py" | head -n1)"
   if [ -n "$existing_pid" ]; then
-    echo "$existing_pid"
+    MQTT_BRIDGE_PID="$existing_pid"
+    log INFO "Using existing MQTT bridge PID ${MQTT_BRIDGE_PID}"
     return 0
   fi
 
   python3 /server.py &
-  echo $!
+  MQTT_BRIDGE_PID="$!"
   log INFO "Started MQTT bridge"
 }
 
@@ -480,6 +482,54 @@ ensure_config_line() {
   REBOOT_REQUIRED=1
 }
 
+remove_uncommented_line() {
+  local file="$1"
+  local unwanted="$2"
+  local tmp_file
+  tmp_file="${file}.tmp.$$"
+
+  awk -v needle="$unwanted" '
+    {
+      raw = $0
+      line = $0
+      sub(/\r$/, "", line)
+
+      trimmed = line
+      sub(/^[[:space:]]+/, "", trimmed)
+      sub(/[[:space:]]+$/, "", trimmed)
+
+      if (trimmed ~ /^#/) {
+        print raw
+        next
+      }
+
+      if (trimmed == needle) {
+        changed = 1
+        next
+      }
+
+      print raw
+    }
+    END {
+      if (changed == 1) {
+        exit 10
+      }
+      exit 0
+    }
+  ' "$file" > "$tmp_file"
+
+  local rc=$?
+  if [ "$rc" -eq 10 ]; then
+    mv "$tmp_file" "$file"
+    log WARN "removed obsolete config line: ${unwanted}"
+    REBOOT_REQUIRED=1
+    return 0
+  fi
+
+  rm -f "$tmp_file"
+  return 0
+}
+
 remove_recomputer_overlay_variants() {
   local file="$1"
   local expected="$2"
@@ -734,17 +784,31 @@ configure_rs485() {
   local enable_de_control="$2"
   local board_profile="$3"
   local strict_validation="$4"
+  local use_r100x_overlay="$5"
 
   log INFO "RS485: verify boot configuration"
 
   ensure_config_line "$config_file" "enable_uart=1"
-  ensure_config_line "$config_file" "dtoverlay=uart2,ctsrts"
-  ensure_config_line "$config_file" "dtoverlay=uart3,ctsrts"
 
-  if [ "$board_profile" = "v1_1" ]; then
-    ensure_config_line "$config_file" "dtoverlay=uart4,ctsrts"
+  if [ "$use_r100x_overlay" = "true" ]; then
+    # The reComputer-R100x overlay configures RS485 UART pinmux itself.
+    # Keeping standalone uartX overlays can conflict (for example uart5 vs i2c5 on GPIO12).
+    remove_uncommented_line "$config_file" "dtoverlay=uart2,ctsrts"
+    remove_uncommented_line "$config_file" "dtoverlay=uart3,ctsrts"
+    remove_uncommented_line "$config_file" "dtoverlay=uart4,ctsrts"
+    remove_uncommented_line "$config_file" "dtoverlay=uart5,ctsrts"
+    log INFO "RS485 UART pinmux is managed by ${R100X_OVERLAY_NAME} overlay"
   else
-    ensure_config_line "$config_file" "dtoverlay=uart5,ctsrts"
+    ensure_config_line "$config_file" "dtoverlay=uart2,ctsrts"
+    ensure_config_line "$config_file" "dtoverlay=uart3,ctsrts"
+
+    if [ "$board_profile" = "v1_1" ]; then
+      ensure_config_line "$config_file" "dtoverlay=uart4,ctsrts"
+      remove_uncommented_line "$config_file" "dtoverlay=uart5,ctsrts"
+    else
+      ensure_config_line "$config_file" "dtoverlay=uart5,ctsrts"
+      remove_uncommented_line "$config_file" "dtoverlay=uart4,ctsrts"
+    fi
   fi
 
   if [ "$enable_de_control" = "true" ]; then
@@ -819,7 +883,7 @@ run_cycle() {
   fi
 
   if [ "$enable_rs485" = "true" ]; then
-    configure_rs485 "$config_file" "$enable_rs485_de_control" "$active_profile" "$strict_profile_validation"
+    configure_rs485 "$config_file" "$enable_rs485_de_control" "$active_profile" "$strict_profile_validation" "$enable_recomputer_r100x_overlay"
   else
     log INFO "RS485 check disabled by option"
   fi
@@ -857,8 +921,7 @@ run_cycle() {
 }
 
 main() {
-  local mqtt_bridge_pid
-  mqtt_bridge_pid="$(start_mqtt_bridge)"
+  start_mqtt_bridge
 
   if [ ! -f "${OPTIONS_FILE}" ]; then
     log WARN "options.json not found yet, using defaults"
@@ -867,7 +930,12 @@ main() {
   run_cycle || true
 
   log INFO "Boot verification finished; MQTT bridge remains active"
-  wait "$mqtt_bridge_pid"
+  if [ -n "${MQTT_BRIDGE_PID}" ]; then
+    wait "${MQTT_BRIDGE_PID}"
+  else
+    log ERROR "MQTT bridge PID is empty; keeping container alive for diagnostics"
+    tail -f /dev/null
+  fi
 }
 
 trap cleanup_mount EXIT

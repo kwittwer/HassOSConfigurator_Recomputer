@@ -92,6 +92,7 @@ For software, the important part is the real GPIO signal behind the label. If th
 - This add-on targets reComputer R1000 with CM4 and supports both v1.0 and v1.1 profiles.
 - UART overlay changes require a host reboot to become active.
 - If `enable_recomputer_r100x_overlay` is enabled, the add-on installs `reComputer-R100x.dtbo` to `/boot/overlays` and enables the corresponding `dtoverlay=` line in `config.txt`.
+- With `enable_recomputer_r100x_overlay=true`, the add-on removes standalone `dtoverlay=uartX,ctsrts` lines to avoid pin conflicts with the overlay-managed I2C/GPIO expander.
 - RS485 120R termination resistors are hardware-level and are not managed by this add-on.
 - `devicetree: true` is enabled so `/device-tree` can be logged for diagnostics.
 - The add-on connects to an MQTT broker and publishes LED, buzzer, and GPIO25 state/command topics.

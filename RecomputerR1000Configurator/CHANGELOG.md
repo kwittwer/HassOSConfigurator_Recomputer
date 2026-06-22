@@ -5,6 +5,7 @@
 - Added automatic install/activation of Seeed `reComputer-R100x` overlay from within the add-on.
 - Added new option `enable_recomputer_r100x_overlay` to control auto-overlay handling.
 - Added runtime compilation path for `reComputer-R100x.dtbo` and automatic `dtoverlay=` config repair.
+- Prevented UART overlay pinmux conflicts (notably `uart5` vs I2C5 on GPIO12) when `reComputer-R100x` overlay is enabled.
 
 ## 0.6.3
 
