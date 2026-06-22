@@ -93,6 +93,8 @@ For software, the important part is the real GPIO signal behind the label. If th
 - UART overlay changes require a host reboot to become active.
 - If `enable_recomputer_r100x_overlay` is enabled, the add-on installs `reComputer-R100x.dtbo` to `/boot/overlays` and enables the corresponding `dtoverlay=` line in `config.txt`.
 - With `enable_recomputer_r100x_overlay=true`, the add-on removes standalone `dtoverlay=uartX,ctsrts` lines to avoid pin conflicts with the overlay-managed I2C/GPIO expander.
+- The add-on uses a vendored copy of Seeed's `reComputer-R100x-overlay.dts` shipped in the image, so overlay installation no longer depends on external download access.
+- The image also ships a precompiled `reComputer-R100x.dtbo`, so normal runtime operation does not require `dtc`.
 - RS485 120R termination resistors are hardware-level and are not managed by this add-on.
 - `devicetree: true` is enabled so `/device-tree` can be logged for diagnostics.
 - The add-on connects to an MQTT broker and publishes LED, buzzer, and GPIO25 state/command topics.

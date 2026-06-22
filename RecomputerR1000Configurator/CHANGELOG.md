@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.7
+
+- Added precompiled vendored `reComputer-R100x.dtbo` to the add-on image.
+- Removed runtime dependency on `dtc` for normal overlay installation.
+- Kept compile-from-source as fallback only when precompiled vendor artifact is missing.
+
+## 0.6.6
+
+- Vendored Seeed `reComputer-R100x-overlay.dts` into the add-on image.
+- Removed runtime network dependency for overlay installation (no external download required).
+- Overlay compilation now uses the local vendor source shipped with the add-on.
+
 ## 0.6.4
 
 - Added automatic install/activation of Seeed `reComputer-R100x` overlay from within the add-on.

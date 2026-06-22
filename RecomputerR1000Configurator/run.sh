@@ -9,7 +9,8 @@ readonly MOUNT_POINT="${WORK_DIR}/boot"
 readonly OPTIONS_FILE="/data/options.json"
 readonly HOMEASSISTANT_SNIPPET_FILE="/data/homeassistant_config_snippet.yaml"
 readonly R100X_OVERLAY_NAME="reComputer-R100x"
-readonly R100X_OVERLAY_DTS_URL="https://github.com/Seeed-Studio/seeed-linux-dtoverlays/raw/refs/heads/master/overlays/rpi/reComputer-R100x-overlay.dts"
+readonly R100X_OVERLAY_DTS_VENDOR_FILE="/opt/vendor/seeed/overlays/rpi/reComputer-R100x-overlay.dts"
+readonly R100X_OVERLAY_DTBO_VENDOR_FILE="/opt/vendor/seeed/overlays/rpi/reComputer-R100x.dtbo"
 readonly R100X_OVERLAY_DTS_FILE="${WORK_DIR}/${R100X_OVERLAY_NAME}-overlay.dts"
 readonly R100X_OVERLAY_DTBO_FILE="${WORK_DIR}/${R100X_OVERLAY_NAME}.dtbo"
 
@@ -530,6 +531,54 @@ remove_uncommented_line() {
   return 0
 }
 
+remove_uncommented_line_regex() {
+  local file="$1"
+  local pattern="$2"
+  local tmp_file
+  tmp_file="${file}.tmp.$$"
+
+  awk -v regex="$pattern" '
+    {
+      raw = $0
+      line = $0
+      sub(/\r$/, "", line)
+
+      trimmed = line
+      sub(/^[[:space:]]+/, "", trimmed)
+      sub(/[[:space:]]+$/, "", trimmed)
+
+      if (trimmed ~ /^#/) {
+        print raw
+        next
+      }
+
+      if (trimmed ~ regex) {
+        changed = 1
+        next
+      }
+
+      print raw
+    }
+    END {
+      if (changed == 1) {
+        exit 10
+      }
+      exit 0
+    }
+  ' "$file" > "$tmp_file"
+
+  local rc=$?
+  if [ "$rc" -eq 10 ]; then
+    mv "$tmp_file" "$file"
+    log WARN "removed config lines matching regex: ${pattern}"
+    REBOOT_REQUIRED=1
+    return 0
+  fi
+
+  rm -f "$tmp_file"
+  return 0
+}
+
 remove_recomputer_overlay_variants() {
   local file="$1"
   local expected="$2"
@@ -586,35 +635,37 @@ ensure_recomputer_r100x_overlay() {
   mkdir -p "${WORK_DIR}" "${MOUNT_POINT}/overlays"
 
   if [ ! -f "$target_dtbo" ]; then
-    if ! command -v wget >/dev/null 2>&1; then
-      log ERROR "wget is required to fetch ${R100X_OVERLAY_NAME} overlay source"
-      return 1
+    if [ -f "${R100X_OVERLAY_DTBO_VENDOR_FILE}" ]; then
+      log INFO "Using precompiled vendored ${R100X_OVERLAY_NAME}.dtbo"
+      cp "${R100X_OVERLAY_DTBO_VENDOR_FILE}" "$target_dtbo"
+    else
+      if ! command -v dtc >/dev/null 2>&1; then
+        log ERROR "Missing vendored ${R100X_OVERLAY_NAME}.dtbo and dtc unavailable for fallback compile"
+        return 1
+      fi
+
+      if [ ! -f "${R100X_OVERLAY_DTS_VENDOR_FILE}" ]; then
+        log ERROR "Missing vendored overlay source: ${R100X_OVERLAY_DTS_VENDOR_FILE}"
+        return 1
+      fi
+
+      log INFO "Fallback: compiling ${R100X_OVERLAY_NAME}.dtbo from vendored source"
+      cp "${R100X_OVERLAY_DTS_VENDOR_FILE}" "${R100X_OVERLAY_DTS_FILE}"
+
+      # The DTS includes gpio binding macros not available in this add-on build context.
+      # Replace them with their numeric values before compiling.
+      sed -i '/dt-bindings\/gpio\/gpio.h/d' "${R100X_OVERLAY_DTS_FILE}" || true
+      sed -i 's/GPIO_ACTIVE_HIGH/0/g' "${R100X_OVERLAY_DTS_FILE}" || true
+      sed -i 's/GPIO_ACTIVE_LOW/1/g' "${R100X_OVERLAY_DTS_FILE}" || true
+
+      if ! dtc -@ -I dts -O dtb -o "${R100X_OVERLAY_DTBO_FILE}" "${R100X_OVERLAY_DTS_FILE}" >/dev/null 2>&1; then
+        log ERROR "Failed to compile ${R100X_OVERLAY_NAME} overlay"
+        return 1
+      fi
+
+      cp "${R100X_OVERLAY_DTBO_FILE}" "$target_dtbo"
     fi
 
-    if ! command -v dtc >/dev/null 2>&1; then
-      log ERROR "dtc is required to compile ${R100X_OVERLAY_NAME} overlay"
-      return 1
-    fi
-
-    log INFO "Downloading ${R100X_OVERLAY_NAME} overlay source"
-    if ! wget -q -O "${R100X_OVERLAY_DTS_FILE}" "${R100X_OVERLAY_DTS_URL}"; then
-      log ERROR "Failed to download ${R100X_OVERLAY_NAME} overlay source"
-      return 1
-    fi
-
-    # The DTS includes gpio binding macros not available in this add-on build context.
-    # Replace them with their numeric values before compiling.
-    sed -i '/dt-bindings\/gpio\/gpio.h/d' "${R100X_OVERLAY_DTS_FILE}" || true
-    sed -i 's/GPIO_ACTIVE_HIGH/0/g' "${R100X_OVERLAY_DTS_FILE}" || true
-    sed -i 's/GPIO_ACTIVE_LOW/1/g' "${R100X_OVERLAY_DTS_FILE}" || true
-
-    log INFO "Compiling ${R100X_OVERLAY_NAME}.dtbo"
-    if ! dtc -@ -I dts -O dtb -o "${R100X_OVERLAY_DTBO_FILE}" "${R100X_OVERLAY_DTS_FILE}" >/dev/null 2>&1; then
-      log ERROR "Failed to compile ${R100X_OVERLAY_NAME} overlay"
-      return 1
-    fi
-
-    cp "${R100X_OVERLAY_DTBO_FILE}" "$target_dtbo"
     chmod 0644 "$target_dtbo"
     log WARN "Installed ${R100X_OVERLAY_NAME}.dtbo to /boot/overlays"
     REBOOT_REQUIRED=1
@@ -793,10 +844,7 @@ configure_rs485() {
   if [ "$use_r100x_overlay" = "true" ]; then
     # The reComputer-R100x overlay configures RS485 UART pinmux itself.
     # Keeping standalone uartX overlays can conflict (for example uart5 vs i2c5 on GPIO12).
-    remove_uncommented_line "$config_file" "dtoverlay=uart2,ctsrts"
-    remove_uncommented_line "$config_file" "dtoverlay=uart3,ctsrts"
-    remove_uncommented_line "$config_file" "dtoverlay=uart4,ctsrts"
-    remove_uncommented_line "$config_file" "dtoverlay=uart5,ctsrts"
+    remove_uncommented_line_regex "$config_file" "^dtoverlay=uart[2345]([,].*)?$"
     log INFO "RS485 UART pinmux is managed by ${R100X_OVERLAY_NAME} overlay"
   else
     ensure_config_line "$config_file" "dtoverlay=uart2,ctsrts"
