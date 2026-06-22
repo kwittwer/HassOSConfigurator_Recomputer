@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.8
+
+- Fixed add-on crash behavior when MQTT bridge exits (for example on auth failures).
+- Added supervisor restart loop in `run.sh` so the container remains alive and retries bridge startup.
+
 ## 0.6.7
 
 - Added precompiled vendored `reComputer-R100x.dtbo` to the add-on image.

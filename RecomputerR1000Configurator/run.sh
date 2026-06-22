@@ -969,21 +969,28 @@ run_cycle() {
 }
 
 main() {
-  start_mqtt_bridge
-
   if [ ! -f "${OPTIONS_FILE}" ]; then
     log WARN "options.json not found yet, using defaults"
   fi
 
   run_cycle || true
 
-  log INFO "Boot verification finished; MQTT bridge remains active"
-  if [ -n "${MQTT_BRIDGE_PID}" ]; then
+  log INFO "Boot verification finished; MQTT bridge supervisor loop active"
+  while true; do
+    start_mqtt_bridge
+
+    if [ -z "${MQTT_BRIDGE_PID}" ]; then
+      log ERROR "MQTT bridge PID is empty; retrying in 5s"
+      sleep 5
+      continue
+    fi
+
     wait "${MQTT_BRIDGE_PID}"
-  else
-    log ERROR "MQTT bridge PID is empty; keeping container alive for diagnostics"
-    tail -f /dev/null
-  fi
+    local rc=$?
+    log WARN "MQTT bridge exited (code ${rc}); restarting in 5s"
+    MQTT_BRIDGE_PID=""
+    sleep 5
+  done
 }
 
 trap cleanup_mount EXIT
