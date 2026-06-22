@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+- Fixed repeated RS485 `dtoverlay=` additions on some systems with CRLF/no-newline edge cases in `config.txt`
+- Added duplicate cleanup for managed RS485 config lines before validation
+- Switched managed line append to safe newline-wrapped write to avoid concatenated entries
+
 ## 0.4.0
 
 - Added `config.txt` content dump to add-on logs each verification cycle

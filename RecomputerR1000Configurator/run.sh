@@ -239,6 +239,7 @@ line_exists_uncommented() {
   awk -v needle="$expected" '
     {
       line = $0
+      sub(/\r$/, "", line)
       sub(/^[[:space:]]+/, "", line)
       if (line ~ /^#/) {
         next
@@ -252,16 +253,70 @@ line_exists_uncommented() {
   ' "$file"
 }
 
+dedupe_uncommented_line() {
+  local file="$1"
+  local expected="$2"
+  local tmp_file
+  tmp_file="${file}.tmp.$$"
+
+  awk -v needle="$expected" '
+    {
+      raw = $0
+      line = $0
+      sub(/\r$/, "", line)
+
+      trimmed = line
+      sub(/^[[:space:]]+/, "", trimmed)
+      sub(/[[:space:]]+$/, "", trimmed)
+
+      if (trimmed ~ /^#/) {
+        print raw
+        next
+      }
+
+      if (trimmed == needle) {
+        seen++
+        if (seen > 1) {
+          changed = 1
+          next
+        }
+      }
+
+      print raw
+    }
+    END {
+      if (changed == 1) {
+        exit 10
+      }
+      exit 0
+    }
+  ' "$file" > "$tmp_file"
+
+  local rc=$?
+  if [ "$rc" -eq 10 ]; then
+    mv "$tmp_file" "$file"
+    log WARN "removed duplicate entries for: ${expected}"
+    return 0
+  fi
+
+  rm -f "$tmp_file"
+  return 0
+}
+
 ensure_config_line() {
   local file="$1"
   local expected="$2"
+
+  dedupe_uncommented_line "$file" "$expected"
 
   if line_exists_uncommented "$file" "$expected"; then
     log INFO "already correct: ${expected}"
     return 0
   fi
 
-  echo "$expected" >> "$file"
+  # Write with leading and trailing newline to avoid line concatenation
+  # when config.txt has no trailing newline at EOF.
+  printf '\n%s\n' "$expected" >> "$file"
   log WARN "repaired: added '${expected}' to $(basename "$file")"
   REBOOT_REQUIRED=1
 }
