@@ -13,7 +13,7 @@ REBOOT_REQUIRED=0
 log() {
   local level="$1"
   shift
-  echo "[${level}] $*"
+  echo "[${level}] $*" >&2
 }
 
 opt_bool() {
