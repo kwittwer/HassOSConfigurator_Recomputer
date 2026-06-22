@@ -2,7 +2,7 @@
 
 ## What this add-on does
 
-This add-on runs automatically at host boot, checks and repairs the required reComputer R1000 settings once, and then keeps only the MQTT bridge running.
+This add-on runs automatically at host boot, checks and repairs the required reComputer R1000 settings once, and then stays active in a lightweight idle loop.
 
 This version adds a board profile selector in the add-on UI so you can choose between reComputer R1000 v1.0 and v1.1 behavior.
 
@@ -11,8 +11,6 @@ Additionally, the startup verification logs:
 - the current content of `config.txt` (with truncation)
 - a tree dump of `/data`
 - a tree dump of `/device-tree` (if present)
-- an optional Home Assistant MQTT YAML snippet for LED and buzzer entities
-- an optional Home Assistant MQTT YAML snippet for LED, buzzer, and GPIO25 power supply sensor
 
 ### Managed areas
 
@@ -28,15 +26,6 @@ Additionally, the startup verification logs:
 - `board_version` (list: v1_0|v1_1|auto): Select the board profile for pin/UART mapping
 - `strict_profile_validation` (bool): Treat missing profile UART devices as errors in logs
 - `boot_partition_override` (str): Optional manual boot partition path, for example `/dev/nvme0n1p1` or `/dev/mmcblk0p1`
-- `emit_homeassistant_config_snippet` (bool): Write and log a copy-ready Home Assistant YAML block
-- `mqtt_host` (str): MQTT broker hostname, for example `core-mosquitto`
-- `mqtt_port` (port): MQTT broker TCP port, for example `1883`
-- `mqtt_username` (str): Optional MQTT username
-- `mqtt_password` (password): Optional MQTT password
-- `mqtt_topic_prefix` (str): Base MQTT topic prefix, for example `recomputer_r1000`
-- `mqtt_discovery_prefix` (str): MQTT discovery prefix, usually `homeassistant`
-- `mqtt_enable_discovery` (bool): Publish Home Assistant MQTT discovery configuration automatically
-- `mqtt_auto_anonymous_fallback` (bool): If credential login fails, retry once without username/password
 - `enable_rs485` (bool): Enable RS485 checks and config repair
 - `enable_recomputer_r100x_overlay` (bool): Download/compile/install and activate `reComputer-R100x` overlay automatically
 - `enable_rs485_de_control` (bool): Set DE/RE GPIOs (6,17,24) to low output each cycle
@@ -97,25 +86,19 @@ For software, the important part is the real GPIO signal behind the label. If th
 - The image also ships a precompiled `reComputer-R100x.dtbo`, so normal runtime operation does not require `dtc`.
 - RS485 120R termination resistors are hardware-level and are not managed by this add-on.
 - `devicetree: true` is enabled so `/device-tree` can be logged for diagnostics.
-- The add-on connects to an MQTT broker and publishes LED, buzzer, and GPIO25 state/command topics.
 - LED runtime control first tries the legacy sysfs LED paths and only falls back to GPIO control if those paths are missing.
 
 ## Home Assistant integration
 
-- The add-on writes a generated YAML file to `/data/homeassistant_config_snippet.yaml`.
-- Copy that block into your Home Assistant `configuration.yaml`.
-- If MQTT discovery is enabled in Home Assistant and `mqtt_enable_discovery` is true, manual YAML may not be needed.
-- Otherwise, copy the generated MQTT block and adjust the MQTT integration in Home Assistant as required.
-- Connection behavior: if `mqtt_username` is set, the add-on tries authenticated connect first; with `mqtt_auto_anonymous_fallback=true`, it retries once without credentials when auth is rejected.
+- This add-on no longer includes MQTT runtime publishing.
+- It focuses on boot configuration repair and hardware readiness checks for RS485, LEDs, and buzzer.
 
 ## How to verify
 
 1. Set `board_version` to `v1_1` and restart the add-on.
 2. Open the add-on log and check for `Active board profile: v1_1`.
-3. Verify that the MQTT bridge starts and that the discovery topics are published.
-4. In Home Assistant, toggle `Rote LED`, `Gruene LED`, `Blaue LED`, and `Buzzer`.
-5. If a control does not work, inspect the add-on log for `Write failed` or `path_missing`.
-6. If the entity is still unavailable, the remaining problem is the physical GPIO mapping on the board, not MQTT.
+3. Verify that LEDs and buzzer are reported as available in the add-on log.
+4. If a hardware check fails, inspect the add-on log for missing GPIO or sysfs access warnings.
 
 ## Troubleshooting boot partition selection
 

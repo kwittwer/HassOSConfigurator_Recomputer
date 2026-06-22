@@ -4,12 +4,11 @@ FROM ${BUILD_FROM}
 ENV LANG C.UTF-8
 
 COPY run.sh /
-COPY server.py /
 COPY vendor/ /opt/vendor/
 WORKDIR /data
 
 RUN chmod a+x /run.sh \
-    && apk add --no-cache util-linux coreutils python3 procps py3-paho-mqtt \
+    && apk add --no-cache util-linux coreutils python3 procps \
     && apk add --no-cache --virtual .build-deps dtc \
     && cp /opt/vendor/seeed/overlays/rpi/reComputer-R100x-overlay.dts /tmp/reComputer-R100x-overlay-build.dts \
     && sed -i '/dt-bindings\/gpio\/gpio.h/d' /tmp/reComputer-R100x-overlay-build.dts \

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0
+
+- Removed MQTT bridge runtime from the add-on.
+- Removed MQTT options and MQTT service dependency from add-on configuration.
+- Startup now performs hardware and boot checks, then remains in a stable idle loop.
+
 ## 0.6.9
 
 - Added automatic `/sys` remount-to-rw handling in startup checks and MQTT runtime writes.

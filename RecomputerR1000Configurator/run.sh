@@ -7,7 +7,6 @@ PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 readonly WORK_DIR="/tmp/recomputer-r1000"
 readonly MOUNT_POINT="${WORK_DIR}/boot"
 readonly OPTIONS_FILE="/data/options.json"
-readonly HOMEASSISTANT_SNIPPET_FILE="/data/homeassistant_config_snippet.yaml"
 readonly R100X_OVERLAY_NAME="reComputer-R100x"
 readonly R100X_OVERLAY_DTS_VENDOR_FILE="/opt/vendor/seeed/overlays/rpi/reComputer-R100x-overlay.dts"
 readonly R100X_OVERLAY_DTBO_VENDOR_FILE="/opt/vendor/seeed/overlays/rpi/reComputer-R100x.dtbo"
@@ -15,7 +14,6 @@ readonly R100X_OVERLAY_DTS_FILE="${WORK_DIR}/${R100X_OVERLAY_NAME}-overlay.dts"
 readonly R100X_OVERLAY_DTBO_FILE="${WORK_DIR}/${R100X_OVERLAY_NAME}.dtbo"
 
 REBOOT_REQUIRED=0
-MQTT_BRIDGE_PID=""
 
 log() {
   local level="$1"
@@ -114,102 +112,9 @@ emit_debug_dumps() {
   dump_tree_to_log /device-tree 4 400
 }
 
-start_mqtt_bridge() {
-  local existing_pid
-
-  existing_pid="$(pgrep -f "/server.py" | head -n1)"
-  if [ -n "$existing_pid" ]; then
-    MQTT_BRIDGE_PID="$existing_pid"
-    log INFO "Using existing MQTT bridge PID ${MQTT_BRIDGE_PID}"
-    return 0
-  fi
-
-  python3 /server.py &
-  MQTT_BRIDGE_PID="$!"
-  log INFO "Started MQTT bridge"
-}
-
 write_active_profile_file() {
   local active_profile="$1"
   printf '%s\n' "$active_profile" > /data/active_profile
-}
-
-write_homeassistant_config_snippet() {
-  local topic_prefix="$1"
-  local emit_snippet="$2"
-
-  cat > "${HOMEASSISTANT_SNIPPET_FILE}" <<EOF
-# Paste this into your Home Assistant configuration.yaml
-# If MQTT discovery is enabled in Home Assistant, this block is optional.
-# Includes LED switches, buzzer switch, and GPIO25 power supply binary sensor.
-
-mqtt:
-  binary_sensor:
-    - name: "Versorgungsspannung ReComputer"
-      unique_id: "PS_Recomputer"
-      state_topic: "${topic_prefix}/sensor/power_supply/state"
-      availability_topic: "${topic_prefix}/status"
-      payload_on: "on"
-      payload_off: "off"
-      payload_available: "online"
-      payload_not_available: "offline"
-      device_class: power
-      icon: mdi:power-plug
-  switch:
-    - name: "Gruene LED"
-      unique_id: green_led_switch
-      command_topic: "${topic_prefix}/led/green/set"
-      state_topic: "${topic_prefix}/led/green/state"
-      availability_topic: "${topic_prefix}/status"
-      payload_on: "on"
-      payload_off: "off"
-      state_on: "on"
-      state_off: "off"
-      payload_available: "online"
-      payload_not_available: "offline"
-      icon: mdi:led-on
-    - name: "Rote LED"
-      unique_id: red_led_switch
-      command_topic: "${topic_prefix}/led/red/set"
-      state_topic: "${topic_prefix}/led/red/state"
-      availability_topic: "${topic_prefix}/status"
-      payload_on: "on"
-      payload_off: "off"
-      state_on: "on"
-      state_off: "off"
-      payload_available: "online"
-      payload_not_available: "offline"
-      icon: mdi:led-on
-    - name: "Blaue LED"
-      unique_id: blue_led_switch
-      command_topic: "${topic_prefix}/led/blue/set"
-      state_topic: "${topic_prefix}/led/blue/state"
-      availability_topic: "${topic_prefix}/status"
-      payload_on: "on"
-      payload_off: "off"
-      state_on: "on"
-      state_off: "off"
-      payload_available: "online"
-      payload_not_available: "offline"
-      icon: mdi:led-on
-    - name: "Buzzer"
-      unique_id: recomputer_buzzer_switch
-      command_topic: "${topic_prefix}/buzzer/main/set"
-      state_topic: "${topic_prefix}/buzzer/main/state"
-      availability_topic: "${topic_prefix}/status"
-      payload_on: "on"
-      payload_off: "off"
-      state_on: "on"
-      state_off: "off"
-      payload_available: "online"
-      payload_not_available: "offline"
-      icon: mdi:bullhorn-outline
-EOF
-
-  log INFO "Home Assistant config snippet written to ${HOMEASSISTANT_SNIPPET_FILE}"
-  if [ "$emit_snippet" = "true" ]; then
-    dump_file_to_log "${HOMEASSISTANT_SNIPPET_FILE}" 300
-  fi
 }
 
 cleanup_mount() {
@@ -902,10 +807,6 @@ run_cycle() {
   strict_profile_validation="$(opt_bool strict_profile_validation false)"
   local boot_partition_override
   boot_partition_override="$(opt_str boot_partition_override "")"
-  local emit_homeassistant_config_snippet
-  emit_homeassistant_config_snippet="$(opt_bool emit_homeassistant_config_snippet true)"
-  local mqtt_topic_prefix
-  mqtt_topic_prefix="$(opt_str mqtt_topic_prefix recomputer_r1000)"
   local enable_rs485_de_control
   enable_rs485_de_control="$(opt_bool enable_rs485_de_control false)"
   local enable_led_check
@@ -931,7 +832,6 @@ run_cycle() {
   active_profile="$(resolve_board_profile "$board_version")"
   log INFO "Active board profile: ${active_profile}"
   write_active_profile_file "$active_profile"
-  write_homeassistant_config_snippet "$mqtt_topic_prefix" "$emit_homeassistant_config_snippet"
 
   local config_file="${MOUNT_POINT}/config.txt"
 
@@ -987,21 +887,9 @@ main() {
 
   run_cycle || true
 
-  log INFO "Boot verification finished; MQTT bridge supervisor loop active"
+  log INFO "Boot verification finished; idle loop active"
   while true; do
-    start_mqtt_bridge
-
-    if [ -z "${MQTT_BRIDGE_PID}" ]; then
-      log ERROR "MQTT bridge PID is empty; retrying in 5s"
-      sleep 5
-      continue
-    fi
-
-    wait "${MQTT_BRIDGE_PID}"
-    local rc=$?
-    log WARN "MQTT bridge exited (code ${rc}); restarting in 5s"
-    MQTT_BRIDGE_PID=""
-    sleep 5
+    sleep 3600
   done
 }
 
