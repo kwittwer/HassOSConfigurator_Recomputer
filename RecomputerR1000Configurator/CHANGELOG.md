@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.9
+
+- Added automatic `/sys` remount-to-rw handling in startup checks and MQTT runtime writes.
+- Added retry-limited self-healing for read-only sysfs after host updates/reboots.
+
 ## 0.6.8
 
 - Fixed add-on crash behavior when MQTT bridge exits (for example on auth failures).

@@ -4,6 +4,7 @@ import signal
 import sys
 import time
 import threading
+import subprocess
 from pathlib import Path
 
 import paho.mqtt.client as mqtt
@@ -13,6 +14,8 @@ OPTIONS_FILE = DATA_DIR / 'options.json'
 ACTIVE_PROFILE_FILE = DATA_DIR / 'active_profile'
 
 RUNNING = True
+LAST_SYSFS_RW_ATTEMPT = 0.0
+SYSFS_RW_RETRY_SEC = 30.0
 
 GPIO_LED_MAP = {
     ('v1_0', 'red'): 20,
@@ -78,7 +81,51 @@ def read_active_profile() -> str:
     return 'v1_1'
 
 
+def _is_sysfs_readonly() -> bool:
+    try:
+        for line in Path('/proc/mounts').read_text(encoding='utf-8').splitlines():
+            parts = line.split()
+            if len(parts) >= 4 and parts[1] == '/sys' and parts[2] == 'sysfs':
+                return 'ro' in parts[3].split(',')
+    except OSError:
+        pass
+    return False
+
+
+def ensure_sysfs_rw() -> bool:
+    global LAST_SYSFS_RW_ATTEMPT
+
+    if not _is_sysfs_readonly():
+        return True
+
+    now = time.time()
+    if now - LAST_SYSFS_RW_ATTEMPT < SYSFS_RW_RETRY_SEC:
+        return False
+
+    LAST_SYSFS_RW_ATTEMPT = now
+    try:
+        subprocess.run(
+            ['mount', '-o', 'remount,rw', '/sys'],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f'[SYSFS] Remount /sys rw failed: {exc}')
+        return False
+
+    if _is_sysfs_readonly():
+        print('[SYSFS] /sys still read-only after remount attempt')
+        return False
+
+    print('[SYSFS] /sys remounted read-write')
+    return True
+
+
 def gpio_value_path(gpio_num: int, direction: str) -> Path:
+    ensure_sysfs_rw()
+
     gpio_path = Path(f'/sys/class/gpio/gpio{gpio_num}')
     export_path = Path('/sys/class/gpio/export')
 
@@ -139,6 +186,8 @@ def read_state(path: Path) -> tuple[bool, str]:
 def write_state(path: Path, state: str) -> tuple[bool, str]:
     if not path.exists():
         return False, 'path_missing'
+
+    ensure_sysfs_rw()
 
     # Some board LEDs are bound to kernel triggers until explicitly disabled.
     trigger_path = path.parent / 'trigger'

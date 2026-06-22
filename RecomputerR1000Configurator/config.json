@@ -1,6 +1,6 @@
 {
   "name": "reComputer R1000 Configurator",
-  "version": "0.6.8",
+  "version": "0.6.9",
   "slug": "recomputer_r1000_configurator_addon",
   "description": "Boot-time verify and repair for reComputer R1000 RS485, LED and buzzer setup.",
   "arch": ["armhf", "armv7", "aarch64"],

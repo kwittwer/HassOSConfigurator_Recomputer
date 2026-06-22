@@ -23,6 +23,16 @@ log() {
   echo "[${level}] $*" >&2
 }
 
+ensure_sysfs_rw() {
+  if mount | grep -Eq '^sysfs on /sys type sysfs \(.*\bro\b'; then
+    if mount -o remount,rw /sys >/dev/null 2>&1; then
+      log INFO "/sys remounted read-write"
+    else
+      log WARN "Could not remount /sys as read-write"
+    fi
+  fi
+}
+
 opt_bool() {
   local key="$1"
   local default_value="$2"
@@ -879,6 +889,8 @@ configure_rs485() {
 
 run_cycle() {
   REBOOT_REQUIRED=0
+
+  ensure_sysfs_rw
 
   local enable_rs485
   enable_rs485="$(opt_bool enable_rs485 true)"
