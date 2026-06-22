@@ -35,40 +35,42 @@ automation:
     action:
       - action: shell_command.recomputer_sysfs_init
 
-switch:
-  - platform: command_line
-    switches:
-      green_led:
-        friendly_name: Gruene LED
-        command_on: "sh -c 'echo none > /sys/class/leds/led-green/trigger 2>/dev/null; echo 1 > /sys/class/leds/led-green/brightness'"
-        command_off: "sh -c 'echo none > /sys/class/leds/led-green/trigger 2>/dev/null; echo 0 > /sys/class/leds/led-green/brightness'"
-        command_state: "cat /sys/class/leds/led-green/brightness"
-        value_template: "{{ value | trim == '1' }}"
-        icon_template: "{{ 'mdi:led-on' if is_state('switch.green_led', 'on') else 'mdi:led-off' }}"
+command_line:
+  - switch:
+      name: Gruene LED
+      unique_id: green_led_switch
+      command_on: "sh -c 'echo none > /sys/class/leds/led-green/trigger 2>/dev/null; echo 1 > /sys/class/leds/led-green/brightness'"
+      command_off: "sh -c 'echo none > /sys/class/leds/led-green/trigger 2>/dev/null; echo 0 > /sys/class/leds/led-green/brightness'"
+      command_state: "cat /sys/class/leds/led-green/brightness"
+      value_template: "{{ value | trim == '1' }}"
+      icon: mdi:led-on
 
-      red_led:
-        friendly_name: Rote LED
-        command_on: "sh -c 'echo none > /sys/class/leds/led-red/trigger 2>/dev/null; echo 1 > /sys/class/leds/led-red/brightness'"
-        command_off: "sh -c 'echo none > /sys/class/leds/led-red/trigger 2>/dev/null; echo 0 > /sys/class/leds/led-red/brightness'"
-        command_state: "cat /sys/class/leds/led-red/brightness"
-        value_template: "{{ value | trim == '1' }}"
-        icon_template: "{{ 'mdi:led-on' if is_state('switch.red_led', 'on') else 'mdi:led-off' }}"
+  - switch:
+      name: Rote LED
+      unique_id: red_led_switch
+      command_on: "sh -c 'echo none > /sys/class/leds/led-red/trigger 2>/dev/null; echo 1 > /sys/class/leds/led-red/brightness'"
+      command_off: "sh -c 'echo none > /sys/class/leds/led-red/trigger 2>/dev/null; echo 0 > /sys/class/leds/led-red/brightness'"
+      command_state: "cat /sys/class/leds/led-red/brightness"
+      value_template: "{{ value | trim == '1' }}"
+      icon: mdi:led-on
 
-      blue_led:
-        friendly_name: Blaue LED
-        command_on: "sh -c 'echo none > /sys/class/leds/led-blue/trigger 2>/dev/null; echo 1 > /sys/class/leds/led-blue/brightness'"
-        command_off: "sh -c 'echo none > /sys/class/leds/led-blue/trigger 2>/dev/null; echo 0 > /sys/class/leds/led-blue/brightness'"
-        command_state: "cat /sys/class/leds/led-blue/brightness"
-        value_template: "{{ value | trim == '1' }}"
-        icon_template: "{{ 'mdi:led-on' if is_state('switch.blue_led', 'on') else 'mdi:led-off' }}"
+  - switch:
+      name: Blaue LED
+      unique_id: blue_led_switch
+      command_on: "sh -c 'echo none > /sys/class/leds/led-blue/trigger 2>/dev/null; echo 1 > /sys/class/leds/led-blue/brightness'"
+      command_off: "sh -c 'echo none > /sys/class/leds/led-blue/trigger 2>/dev/null; echo 0 > /sys/class/leds/led-blue/brightness'"
+      command_state: "cat /sys/class/leds/led-blue/brightness"
+      value_template: "{{ value | trim == '1' }}"
+      icon: mdi:led-on
 
-      buzzer:
-        friendly_name: Buzzer
-        command_on: "sh -c 'echo 1 > /sys/class/gpio/gpio591/value'"
-        command_off: "sh -c 'echo 0 > /sys/class/gpio/gpio591/value'"
-        command_state: "cat /sys/class/gpio/gpio591/value"
-        value_template: "{{ value | trim == '1' }}"
-        icon_template: "{{ 'mdi:bullhorn' if is_state('switch.buzzer', 'on') else 'mdi:bullhorn-outline' }}"
+  - switch:
+      name: Buzzer
+      unique_id: recomputer_buzzer_switch
+      command_on: "sh -c 'echo 1 > /sys/class/gpio/gpio591/value'"
+      command_off: "sh -c 'echo 0 > /sys/class/gpio/gpio591/value'"
+      command_state: "cat /sys/class/gpio/gpio591/value"
+      value_template: "{{ value | trim == '1' }}"
+      icon: mdi:bullhorn-outline
 ```
 
 Hinweis: Der Buzzer-Pfad oben ist fuer v1.1 (GPIO591). Bei v1.0 stattdessen GPIO21 verwenden.
