@@ -1,0 +1,28 @@
+configuration:
+  board_version:
+    name: Board version profile
+    description: Select your reComputer R1000 hardware profile.
+  strict_profile_validation:
+    name: Strict profile validation
+    description: If enabled, missing profile UART devices are logged as errors.
+  enable_rs485:
+    name: Enable RS485 checks
+    description: Verify and repair RS485 boot configuration.
+  enable_rs485_de_control:
+    name: Enable RS485 DE/RE GPIO control
+    description: For v1.0 only, force DE/RE GPIOs low each cycle.
+  enable_led_check:
+    name: Enable LED checks
+    description: Verify user LED device files.
+  led_self_test:
+    name: LED self test
+    description: Briefly toggle user LEDs each cycle.
+  enable_buzzer_check:
+    name: Enable buzzer checks
+    description: Verify buzzer GPIO mapping for selected profile.
+  buzzer_self_test:
+    name: Buzzer self test
+    description: Emit a short beep each cycle.
+  check_interval_sec:
+    name: Check interval in seconds
+    description: Delay between verification cycles.

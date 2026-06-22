@@ -36,6 +36,16 @@ opt_int() {
   fi
 }
 
+opt_str() {
+  local key="$1"
+  local default_value="$2"
+  if [ -f "${OPTIONS_FILE}" ]; then
+    jq -r ".${key} // \"${default_value}\"" "${OPTIONS_FILE}" 2>/dev/null
+  else
+    echo "${default_value}"
+  fi
+}
+
 cleanup_mount() {
   if mountpoint -q "${MOUNT_POINT}"; then
     umount "${MOUNT_POINT}" >/dev/null 2>&1 || true
@@ -109,9 +119,12 @@ ensure_config_line() {
 }
 
 check_rs485_devices() {
+  local strict_validation="$1"
+  shift
+
   local missing=0
   local dev
-  for dev in /dev/ttyAMA2 /dev/ttyAMA3 /dev/ttyAMA5; do
+  for dev in "$@"; do
     if [ -e "$dev" ]; then
       log INFO "RS485 UART available: ${dev}"
     else
@@ -120,7 +133,12 @@ check_rs485_devices() {
     fi
   done
 
-  return "$missing"
+  if [ "$missing" -eq 1 ] && [ "$strict_validation" = "true" ]; then
+    log ERROR "Strict profile validation is enabled and at least one RS485 UART is missing."
+    return 1
+  fi
+
+  return 0
 }
 
 ensure_gpio_out_low() {
@@ -190,25 +208,97 @@ check_buzzer_v11() {
   return 0
 }
 
+check_buzzer_v10() {
+  local self_test="$1"
+
+  if ! ensure_gpio_out_low 21; then
+    log WARN "Buzzer GPIO21 not ready"
+    return 1
+  fi
+
+  if [ "$self_test" = "true" ] && [ -w /sys/class/gpio/gpio21/value ]; then
+    log INFO "Buzzer self-test enabled"
+    echo 1 > /sys/class/gpio/gpio21/value
+    sleep 0.2
+    echo 0 > /sys/class/gpio/gpio21/value
+  fi
+
+  return 0
+}
+
+resolve_board_profile() {
+  local configured_profile="$1"
+
+  case "$configured_profile" in
+    v1_0|v1_1)
+      echo "$configured_profile"
+      return 0
+      ;;
+    auto)
+      if [ -e /dev/ttyAMA4 ] && [ ! -e /dev/ttyAMA5 ]; then
+        log INFO "Auto profile detection: selecting v1_1 (ttyAMA4 present, ttyAMA5 missing)"
+        echo "v1_1"
+        return 0
+      fi
+
+      if [ -e /dev/ttyAMA5 ] && [ ! -e /dev/ttyAMA4 ]; then
+        log INFO "Auto profile detection: selecting v1_0 (ttyAMA5 present, ttyAMA4 missing)"
+        echo "v1_0"
+        return 0
+      fi
+
+      if [ -d /sys/class/gpio/gpio591 ]; then
+        log INFO "Auto profile detection: selecting v1_1 (GPIO591 present)"
+        echo "v1_1"
+        return 0
+      fi
+
+      log WARN "Auto profile detection is inconclusive; defaulting to v1_1"
+      echo "v1_1"
+      return 0
+      ;;
+    *)
+      log WARN "Invalid board_version '${configured_profile}', defaulting to v1_1"
+      echo "v1_1"
+      return 0
+      ;;
+  esac
+}
+
 configure_rs485() {
   local config_file="$1"
   local enable_de_control="$2"
+  local board_profile="$3"
+  local strict_validation="$4"
 
   log INFO "RS485: verify boot configuration"
 
   ensure_config_line "$config_file" "enable_uart=1"
   ensure_config_line "$config_file" "dtoverlay=uart2,ctsrts"
   ensure_config_line "$config_file" "dtoverlay=uart3,ctsrts"
-  ensure_config_line "$config_file" "dtoverlay=uart5,ctsrts"
 
-  if [ "$enable_de_control" = "true" ]; then
-    log INFO "RS485: DE/RE control enabled (GPIO6/GPIO17/GPIO24 -> low)"
-    ensure_gpio_out_low 6
-    ensure_gpio_out_low 17
-    ensure_gpio_out_low 24
+  if [ "$board_profile" = "v1_1" ]; then
+    ensure_config_line "$config_file" "dtoverlay=uart4,ctsrts"
+  else
+    ensure_config_line "$config_file" "dtoverlay=uart5,ctsrts"
   fi
 
-  check_rs485_devices || true
+  if [ "$enable_de_control" = "true" ]; then
+    if [ "$board_profile" = "v1_0" ]; then
+      log INFO "RS485: DE/RE control enabled for v1.0 (GPIO6/GPIO17/GPIO24 -> low)"
+      ensure_gpio_out_low 6
+      ensure_gpio_out_low 17
+      ensure_gpio_out_low 24
+    else
+      log WARN "RS485 DE/RE control for v1.1 is not applied automatically due to mapping differences."
+    fi
+  fi
+
+  if [ "$board_profile" = "v1_1" ]; then
+    check_rs485_devices "$strict_validation" /dev/ttyAMA2 /dev/ttyAMA3 /dev/ttyAMA4 || true
+  else
+    check_rs485_devices "$strict_validation" /dev/ttyAMA2 /dev/ttyAMA3 /dev/ttyAMA5 || true
+  fi
 }
 
 run_cycle() {
@@ -216,6 +306,10 @@ run_cycle() {
 
   local enable_rs485
   enable_rs485="$(opt_bool enable_rs485 true)"
+  local board_version
+  board_version="$(opt_str board_version v1_1)"
+  local strict_profile_validation
+  strict_profile_validation="$(opt_bool strict_profile_validation false)"
   local enable_rs485_de_control
   enable_rs485_de_control="$(opt_bool enable_rs485_de_control false)"
   local enable_led_check
@@ -237,10 +331,14 @@ run_cycle() {
 
   log INFO "Using boot partition: ${boot_partition}"
 
+  local active_profile
+  active_profile="$(resolve_board_profile "$board_version")"
+  log INFO "Active board profile: ${active_profile}"
+
   local config_file="${MOUNT_POINT}/config.txt"
 
   if [ "$enable_rs485" = "true" ]; then
-    configure_rs485 "$config_file" "$enable_rs485_de_control"
+    configure_rs485 "$config_file" "$enable_rs485_de_control" "$active_profile" "$strict_profile_validation"
   else
     log INFO "RS485 check disabled by option"
   fi
@@ -255,8 +353,13 @@ run_cycle() {
   fi
 
   if [ "$enable_buzzer_check" = "true" ]; then
-    log INFO "Buzzer: verify v1.1 mapping via GPIO591"
-    check_buzzer_v11 "$buzzer_self_test" || true
+    if [ "$active_profile" = "v1_1" ]; then
+      log INFO "Buzzer: verify v1.1 mapping via GPIO591"
+      check_buzzer_v11 "$buzzer_self_test" || true
+    else
+      log INFO "Buzzer: verify v1.0 mapping via GPIO21"
+      check_buzzer_v10 "$buzzer_self_test" || true
+    fi
   else
     log INFO "Buzzer check disabled by option"
   fi
