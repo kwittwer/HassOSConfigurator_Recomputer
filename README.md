@@ -12,6 +12,14 @@ Enables the Raspberry Pi 4 Serial Port. Instead of Device Mode, the port becomes
 ## [HassOS SSH port 22222 Configurator](https://github.com/adamoutler/HassOSConfigurator/tree/main/HassOsEnableSSH)
 Places an authorized_keys file in the location required by HassOS at boot time to enable the SSH port 22222. For support click [here](https://community.home-assistant.io/t/hassos-ssh-port-22222-configurator/264109)
 
+## reComputer R1000 Configurator
+Boot-time and periodic verify/repair add-on for reComputer R1000 (CM4), covering:
+- RS485 UART setup and validation from Home Assistant OS side
+- USER LED interface checks
+- Buzzer readiness checks (v1.1, GPIO591)
+
+This add-on is intended to remain installed and running so settings can be restored after updates or accidental overwrites.
+
 # Installation
 Within Home Assistant, click Supervisor-> Add-on Store -> … button (in top left)-> Repositories. Add this repository. 
 

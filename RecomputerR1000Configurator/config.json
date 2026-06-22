@@ -1,0 +1,34 @@
+{
+  "name": "reComputer R1000 Configurator",
+  "version": "0.1.0",
+  "slug": "recomputer_r1000_configurator_addon",
+  "description": "Boot-time verify and repair for reComputer R1000 RS485, LED and buzzer setup.",
+  "arch": ["armhf", "armv7", "aarch64"],
+  "startup": "application",
+  "boot": "auto",
+  "init": false,
+  "ingress": false,
+  "stage": "experimental",
+  "apparmor": false,
+  "privileged": ["SYS_ADMIN"],
+  "full_access": true,
+  "url": "https://wiki.seeedstudio.com/recomputer_r/",
+  "options": {
+    "enable_rs485": true,
+    "enable_rs485_de_control": false,
+    "enable_led_check": true,
+    "led_self_test": false,
+    "enable_buzzer_check": true,
+    "buzzer_self_test": false,
+    "check_interval_sec": 60
+  },
+  "schema": {
+    "enable_rs485": "bool",
+    "enable_rs485_de_control": "bool",
+    "enable_led_check": "bool",
+    "led_self_test": "bool",
+    "enable_buzzer_check": "bool",
+    "buzzer_self_test": "bool",
+    "check_interval_sec": "int(15,3600)"
+  }
+}
