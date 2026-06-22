@@ -303,10 +303,67 @@ dedupe_uncommented_line() {
   return 0
 }
 
+repair_malformed_rs485_lines() {
+  local file="$1"
+  local tmp_file
+  tmp_file="${file}.tmp.$$"
+
+  awk '
+    {
+      line = $0
+      sub(/\r$/, "", line)
+
+      changed_line = 0
+      while (match(line, /dtoverlay=uart[0-9],ctsrts/)) {
+        prefix = substr(line, 1, RSTART - 1)
+        token = substr(line, RSTART, RLENGTH)
+        rest = substr(line, RSTART + RLENGTH)
+
+        if (RSTART == 1) {
+          print token
+        } else {
+          if (length(prefix) > 0) {
+            print prefix
+          }
+          print token
+          changed = 1
+          changed_line = 1
+        }
+
+        line = rest
+      }
+
+      if (!changed_line) {
+        print line
+      } else if (length(line) > 0) {
+        print line
+      }
+    }
+    END {
+      if (changed == 1) {
+        exit 10
+      }
+      exit 0
+    }
+  ' "$file" > "$tmp_file"
+
+  local rc=$?
+  if [ "$rc" -eq 10 ]; then
+    mv "$tmp_file" "$file"
+    log WARN "repaired malformed RS485 overlay line concatenation in $(basename "$file")"
+    REBOOT_REQUIRED=1
+    return 0
+  fi
+
+  rm -f "$tmp_file"
+  return 0
+}
+
 ensure_config_line() {
   local file="$1"
   local expected="$2"
 
+  repair_malformed_rs485_lines "$file"
   dedupe_uncommented_line "$file" "$expected"
 
   if line_exists_uncommented "$file" "$expected"; then

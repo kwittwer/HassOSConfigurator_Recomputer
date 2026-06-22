@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2
+
+- Added automatic repair for malformed concatenated lines like `gpu_mem=16dtoverlay=uart2,ctsrts`
+- Splits embedded RS485 overlay tokens into dedicated lines before validation
+- Keeps duplicate cleanup so repeated `dtoverlay=uartX,ctsrts` entries are removed
+
 ## 0.4.1
 
 - Fixed repeated RS485 `dtoverlay=` additions on some systems with CRLF/no-newline edge cases in `config.txt`
