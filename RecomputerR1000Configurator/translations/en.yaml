@@ -5,6 +5,9 @@ configuration:
   strict_profile_validation:
     name: Strict profile validation
     description: If enabled, missing profile UART devices are logged as errors.
+  boot_partition_override:
+    name: Boot partition override
+    description: Optional manual boot partition path, for example /dev/nvme0n1p1 or /dev/mmcblk0p1.
   enable_rs485:
     name: Enable RS485 checks
     description: Verify and repair RS485 boot configuration.

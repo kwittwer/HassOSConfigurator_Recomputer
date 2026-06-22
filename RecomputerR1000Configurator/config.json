@@ -1,6 +1,6 @@
 {
   "name": "reComputer R1000 Configurator",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "slug": "recomputer_r1000_configurator_addon",
   "description": "Boot-time verify and repair for reComputer R1000 RS485, LED and buzzer setup.",
   "arch": ["armhf", "armv7", "aarch64"],
@@ -16,6 +16,7 @@
   "options": {
     "board_version": "v1_1",
     "strict_profile_validation": false,
+    "boot_partition_override": "",
     "enable_rs485": true,
     "enable_rs485_de_control": false,
     "enable_led_check": true,
@@ -27,6 +28,7 @@
   "schema": {
     "board_version": "list(v1_0|v1_1|auto)",
     "strict_profile_validation": "bool",
+    "boot_partition_override": "str",
     "enable_rs485": "bool",
     "enable_rs485_de_control": "bool",
     "enable_led_check": "bool",

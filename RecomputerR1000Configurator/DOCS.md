@@ -17,6 +17,7 @@ This version adds a board profile selector in the add-on UI so you can choose be
 
 - `board_version` (list: v1_0|v1_1|auto): Select the board profile for pin/UART mapping
 - `strict_profile_validation` (bool): Treat missing profile UART devices as errors in logs
+- `boot_partition_override` (str): Optional manual boot partition path, for example `/dev/nvme0n1p1` or `/dev/mmcblk0p1`
 - `enable_rs485` (bool): Enable RS485 checks and config repair
 - `enable_rs485_de_control` (bool): Set DE/RE GPIOs (6,17,24) to low output each cycle
 - `enable_led_check` (bool): Check LED sysfs availability
@@ -46,6 +47,12 @@ This version adds a board profile selector in the add-on UI so you can choose be
 - This add-on targets reComputer R1000 with CM4 and supports both v1.0 and v1.1 profiles.
 - UART overlay changes require a host reboot to become active.
 - RS485 120R termination resistors are hardware-level and are not managed by this add-on.
+
+## Troubleshooting boot partition selection
+
+- If both eMMC and NVMe are present, automatic partition detection can select the wrong `config.txt`.
+- Set `boot_partition_override` to the active boot partition explicitly.
+- Typical values on your hardware are `/dev/nvme0n1p1` or `/dev/mmcblk0p1`.
 
 ## Rollback
 

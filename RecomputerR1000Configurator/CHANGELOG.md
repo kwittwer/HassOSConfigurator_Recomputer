@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0
+- Improved boot partition selection for systems with both eMMC and NVMe
+- Added root-device based boot partition derivation from `/proc/cmdline`
+- Added `boot_partition_override` option for manual partition selection
+- Added UI translations for `boot_partition_override`
+
 ## 0.2.0
 - Added board profile dropdown in add-on UI (`v1_0`, `v1_1`, `auto`)
 - Added strict profile validation switch

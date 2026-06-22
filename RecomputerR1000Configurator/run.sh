@@ -52,34 +52,131 @@ cleanup_mount() {
   fi
 }
 
+resolve_root_device_from_cmdline() {
+  local root_spec
+  root_spec="$(sed -n 's/.*\broot=\([^ ]*\).*/\1/p' /proc/cmdline 2>/dev/null)"
+
+  if [ -z "$root_spec" ]; then
+    return 1
+  fi
+
+  case "$root_spec" in
+    /dev/*)
+      echo "$root_spec"
+      return 0
+      ;;
+    PARTUUID=*)
+      local partuuid
+      partuuid="${root_spec#PARTUUID=}"
+      if [ -e "/dev/disk/by-partuuid/${partuuid}" ]; then
+        readlink -f "/dev/disk/by-partuuid/${partuuid}"
+        return 0
+      fi
+      ;;
+    UUID=*)
+      local uuid
+      uuid="${root_spec#UUID=}"
+      if [ -e "/dev/disk/by-uuid/${uuid}" ]; then
+        readlink -f "/dev/disk/by-uuid/${uuid}"
+        return 0
+      fi
+      ;;
+  esac
+
+  return 1
+}
+
+derive_boot_partition_from_root_device() {
+  local root_dev="$1"
+
+  case "$root_dev" in
+    /dev/nvme*n*p*)
+      local base
+      base="${root_dev%p*}"
+      echo "${base}p1"
+      return 0
+      ;;
+    /dev/mmcblk*p*)
+      local base
+      base="${root_dev%p*}"
+      echo "${base}p1"
+      return 0
+      ;;
+    /dev/sd[a-z][0-9]*|/dev/vd[a-z][0-9]*|/dev/xvd[a-z][0-9]*)
+      local base
+      base="${root_dev%%[0-9]*}"
+      echo "${base}1"
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+can_mount_boot_partition() {
+  local dev="$1"
+
+  [ -b "$dev" ] || return 1
+
+  cleanup_mount
+  if ! mount "$dev" "${MOUNT_POINT}" >/dev/null 2>&1; then
+    return 1
+  fi
+
+  if [ -f "${MOUNT_POINT}/config.txt" ]; then
+    return 0
+  fi
+
+  cleanup_mount
+  return 1
+}
+
 find_boot_partition() {
+  local override_partition="$1"
+
   local candidates=(
+    /dev/nvme0n1p1
     /dev/mmcblk0p1
     /dev/mmcblk1p1
-    /dev/nvme0n1p1
     /dev/sda1
     /dev/sdb1
     /dev/vda1
+    /dev/xvda1
     /dev/xvda8
   )
 
   mkdir -p "${MOUNT_POINT}"
 
+  if [ -n "$override_partition" ]; then
+    log INFO "Boot partition override requested: ${override_partition}"
+    if can_mount_boot_partition "$override_partition"; then
+      echo "$override_partition"
+      return 0
+    fi
+    log ERROR "Override partition is invalid or has no config.txt: ${override_partition}"
+  fi
+
+  local root_dev
+  if root_dev="$(resolve_root_device_from_cmdline)"; then
+    log INFO "Detected root device from /proc/cmdline: ${root_dev}"
+    local derived_boot
+    if derived_boot="$(derive_boot_partition_from_root_device "$root_dev")"; then
+      if can_mount_boot_partition "$derived_boot"; then
+        echo "$derived_boot"
+        return 0
+      fi
+      log WARN "Derived boot partition from root device is not usable: ${derived_boot}"
+    fi
+  else
+    log WARN "Could not resolve root device from /proc/cmdline"
+  fi
+
   local dev
   for dev in "${candidates[@]}"; do
-    [ -b "${dev}" ] || continue
-
-    cleanup_mount
-    if ! mount "${dev}" "${MOUNT_POINT}" >/dev/null 2>&1; then
-      continue
-    fi
-
-    if [ -f "${MOUNT_POINT}/config.txt" ]; then
+    if can_mount_boot_partition "$dev"; then
       echo "${dev}"
       return 0
     fi
-
-    cleanup_mount
   done
 
   return 1
@@ -310,6 +407,8 @@ run_cycle() {
   board_version="$(opt_str board_version v1_1)"
   local strict_profile_validation
   strict_profile_validation="$(opt_bool strict_profile_validation false)"
+  local boot_partition_override
+  boot_partition_override="$(opt_str boot_partition_override "")"
   local enable_rs485_de_control
   enable_rs485_de_control="$(opt_bool enable_rs485_de_control false)"
   local enable_led_check
@@ -324,7 +423,7 @@ run_cycle() {
   mkdir -p "${WORK_DIR}" "${MOUNT_POINT}"
 
   local boot_partition
-  if ! boot_partition="$(find_boot_partition)"; then
+  if ! boot_partition="$(find_boot_partition "$boot_partition_override")"; then
     log ERROR "No boot partition with config.txt found. Check protection mode and SYS_ADMIN/full_access permissions."
     return 1
   fi

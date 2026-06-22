@@ -5,6 +5,9 @@ configuration:
   strict_profile_validation:
     name: Strikte Profil-Validierung
     description: Wenn aktiv, werden fehlende UARTs des Profils als Fehler protokolliert.
+  boot_partition_override:
+    name: Boot-Partition Override
+    description: Optionaler manueller Pfad zur Boot-Partition, z. B. /dev/nvme0n1p1 oder /dev/mmcblk0p1.
   enable_rs485:
     name: RS485-Pruefung aktivieren
     description: Prueft und repariert die RS485-Boot-Konfiguration.
