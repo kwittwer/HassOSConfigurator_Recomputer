@@ -35,6 +35,15 @@ automation:
     action:
       - action: shell_command.recomputer_sysfs_init
 
+binary_sensor:
+  - platform: rpi_gpio
+    sensors:
+      - port: 25
+        name: Versorgungsspannung ReComputer
+        unique_id: PS_Recomputer
+        bouncetime: 0
+        invert_logic: false
+
 command_line:
   - switch:
       name: Gruene LED
@@ -74,3 +83,5 @@ command_line:
 ```
 
 Hinweis: Der Buzzer-Pfad oben ist fuer v1.1 (GPIO591). Bei v1.0 stattdessen GPIO21 verwenden.
+
+Hinweis: Der `rpi_gpio` Binary Sensor fuer GPIO25 funktioniert nur, wenn deine Home Assistant Installation direkten GPIO-Zugriff auf dem Zielsystem hat.
