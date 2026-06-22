@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.3
+
+- Changed boot repair to run once at startup instead of repeating every 60 seconds.
+- Switched LED and buzzer control to GPIO mappings for v1.0 and v1.1 profiles.
+- Removed periodic MQTT state spam so the bridge now stays event-driven after startup.
+
 ## 0.6.2
 
 - Added automatic MQTT reconnect fallback without credentials when auth is rejected

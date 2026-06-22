@@ -99,11 +99,16 @@ emit_debug_dumps() {
 }
 
 start_mqtt_bridge() {
-  if pgrep -f "/server.py" >/dev/null 2>&1; then
+  local existing_pid
+
+  existing_pid="$(pgrep -f "/server.py" | head -n1)"
+  if [ -n "$existing_pid" ]; then
+    echo "$existing_pid"
     return 0
   fi
 
   python3 /server.py &
+  echo $!
   log INFO "Started MQTT bridge"
 }
 
@@ -737,29 +742,17 @@ run_cycle() {
 }
 
 main() {
-  start_mqtt_bridge
+  local mqtt_bridge_pid
+  mqtt_bridge_pid="$(start_mqtt_bridge)"
 
   if [ ! -f "${OPTIONS_FILE}" ]; then
     log WARN "options.json not found yet, using defaults"
   fi
 
-  while true; do
-    run_cycle || true
+  run_cycle || true
 
-    local check_interval
-    check_interval="$(opt_int check_interval_sec 60)"
-
-    if ! echo "$check_interval" | grep -Eq '^[0-9]+$'; then
-      check_interval=60
-    fi
-
-    if [ "$check_interval" -lt 15 ]; then
-      check_interval=15
-    fi
-
-    log INFO "Next verification in ${check_interval}s"
-    sleep "$check_interval"
-  done
+  log INFO "Boot verification finished; MQTT bridge remains active"
+  wait "$mqtt_bridge_pid"
 }
 
 trap cleanup_mount EXIT

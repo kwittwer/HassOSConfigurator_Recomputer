@@ -14,6 +14,22 @@ ACTIVE_PROFILE_FILE = DATA_DIR / 'active_profile'
 
 RUNNING = True
 
+GPIO_LED_MAP = {
+    ('v1_0', 'red'): 20,
+    ('v1_0', 'green'): 26,
+    ('v1_0', 'blue'): 27,
+    ('v1_1', 'red'): 581,
+    ('v1_1', 'green'): 582,
+    ('v1_1', 'blue'): 583,
+}
+
+GPIO_BUZZER_MAP = {
+    'v1_0': 21,
+    'v1_1': 591,
+}
+
+GPIO_POWER_SUPPLY = 25
+
 
 def read_options() -> dict:
     defaults = {
@@ -47,27 +63,40 @@ def read_active_profile() -> str:
     return 'v1_1'
 
 
+def gpio_value_path(gpio_num: int, direction: str) -> Path:
+    gpio_path = Path(f'/sys/class/gpio/gpio{gpio_num}')
+    export_path = Path('/sys/class/gpio/export')
+
+    if not gpio_path.exists():
+        try:
+            export_path.write_text(str(gpio_num), encoding='utf-8')
+        except OSError:
+            pass
+
+    direction_path = gpio_path / 'direction'
+    if direction_path.exists():
+        try:
+            direction_path.write_text(direction, encoding='utf-8')
+        except OSError:
+            pass
+
+    return gpio_path / 'value'
+
+
 def device_path(device_kind: str, device_name: str) -> Path:
+    profile = read_active_profile()
     if device_kind == 'led':
-        return Path(f'/sys/class/leds/led-{device_name}/brightness')
+        gpio_num = GPIO_LED_MAP.get((profile, device_name))
+        if gpio_num is None:
+            raise KeyError(device_kind)
+        return gpio_value_path(gpio_num, 'out')
     if device_kind == 'buzzer':
-        if read_active_profile() == 'v1_0':
-            return Path('/sys/class/gpio/gpio21/value')
-        return Path('/sys/class/gpio/gpio591/value')
+        gpio_num = GPIO_BUZZER_MAP.get(profile)
+        if gpio_num is None:
+            raise KeyError(device_kind)
+        return gpio_value_path(gpio_num, 'out')
     if device_kind == 'sensor' and device_name == 'power_supply':
-        gpio_path = Path('/sys/class/gpio/gpio25')
-        if not gpio_path.exists():
-            try:
-                Path('/sys/class/gpio/export').write_text('25', encoding='utf-8')
-            except OSError:
-                pass
-        direction_path = gpio_path / 'direction'
-        if direction_path.exists():
-            try:
-                direction_path.write_text('in', encoding='utf-8')
-            except OSError:
-                pass
-        return gpio_path / 'value'
+        return gpio_value_path(GPIO_POWER_SUPPLY, 'in')
     raise KeyError(device_kind)
 
 
@@ -239,6 +268,8 @@ class Bridge:
         ok, result = write_state(path, state)
         if not ok:
             print(f'[MQTT] Write failed for {msg.topic}: {result}')
+        else:
+            print(f'[MQTT] Applied {device_kind}/{device_name} -> {state}')
         self.publish_state(device_kind, device_name)
 
 
@@ -282,8 +313,7 @@ if __name__ == '__main__':
     print('[MQTT] Bridge started')
     try:
         while RUNNING:
-            bridge.publish_all_states()
-            time.sleep(10)
+            time.sleep(1)
     finally:
         bridge.stop()
         print('[MQTT] Bridge stopped')

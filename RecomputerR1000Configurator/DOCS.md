@@ -2,11 +2,11 @@
 
 ## What this add-on does
 
-This add-on runs automatically at host boot and periodically checks if required reComputer R1000 settings still exist. If not, it restores them.
+This add-on runs automatically at host boot, checks and repairs the required reComputer R1000 settings once, and then keeps only the MQTT bridge running.
 
 This version adds a board profile selector in the add-on UI so you can choose between reComputer R1000 v1.0 and v1.1 behavior.
 
-Additionally, each verification cycle now logs:
+Additionally, the startup verification logs:
 
 - the current content of `config.txt` (with truncation)
 - a tree dump of `/data`
@@ -18,8 +18,9 @@ Additionally, each verification cycle now logs:
 
 - RS485 boot configuration in `/mnt/boot/config.txt`
 - RS485 UART device availability (`/dev/ttyAMA2`, `/dev/ttyAMA3`, `/dev/ttyAMA5`)
-- USER LED interfaces (`/sys/class/leds/led-red`, `led-green`, `led-blue`)
-- Buzzer interface for reComputer R1000 v1.1 (`/sys/class/gpio/gpio591`)
+- USER LED GPIOs for v1.0 (`GPIO20`, `GPIO26`, `GPIO27`)
+- USER LED GPIOs for v1.1 (`GPIO581`, `GPIO582`, `GPIO583`)
+- Buzzer GPIOs (`GPIO21` for v1.0, `GPIO591` for v1.1)
 
 ## Configuration options
 
@@ -41,7 +42,7 @@ Additionally, each verification cycle now logs:
 - `led_self_test` (bool): Toggle RGB LEDs briefly each cycle
 - `enable_buzzer_check` (bool): Check/configure buzzer GPIO591
 - `buzzer_self_test` (bool): Emit a short beep each cycle
-- `check_interval_sec` (int 15..3600): Verification interval
+- `check_interval_sec` (int 15..3600): Legacy option, ignored by the current one-time boot repair phase
 
 ## Board profile mapping
 
@@ -65,8 +66,7 @@ Additionally, each verification cycle now logs:
 - UART overlay changes require a host reboot to become active.
 - RS485 120R termination resistors are hardware-level and are not managed by this add-on.
 - `devicetree: true` is enabled so `/device-tree` can be logged for diagnostics.
-- The add-on connects to an MQTT broker and publishes LED and buzzer state/command topics.
-- The add-on also publishes GPIO25 as a power-supply `binary_sensor` topic.
+- The add-on connects to an MQTT broker and publishes LED, buzzer, and GPIO25 state/command topics.
 
 ## Home Assistant integration
 
