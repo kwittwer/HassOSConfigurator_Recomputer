@@ -38,6 +38,9 @@ configuration:
   enable_rs485:
     name: Enable RS485 checks
     description: Verify and repair RS485 boot configuration.
+  enable_recomputer_r100x_overlay:
+    name: Enable reComputer R100x overlay install
+    description: Download, compile, and activate the official Seeed reComputer-R100x overlay on boot.
   enable_rs485_de_control:
     name: Enable RS485 DE/RE GPIO control
     description: For v1.0 only, force DE/RE GPIOs low each cycle.

@@ -8,6 +8,10 @@ readonly WORK_DIR="/tmp/recomputer-r1000"
 readonly MOUNT_POINT="${WORK_DIR}/boot"
 readonly OPTIONS_FILE="/data/options.json"
 readonly HOMEASSISTANT_SNIPPET_FILE="/data/homeassistant_config_snippet.yaml"
+readonly R100X_OVERLAY_NAME="reComputer-R100x"
+readonly R100X_OVERLAY_DTS_URL="https://github.com/Seeed-Studio/seeed-linux-dtoverlays/raw/refs/heads/master/overlays/rpi/reComputer-R100x-overlay.dts"
+readonly R100X_OVERLAY_DTS_FILE="${WORK_DIR}/${R100X_OVERLAY_NAME}-overlay.dts"
+readonly R100X_OVERLAY_DTBO_FILE="${WORK_DIR}/${R100X_OVERLAY_NAME}.dtbo"
 
 REBOOT_REQUIRED=0
 
@@ -476,6 +480,108 @@ ensure_config_line() {
   REBOOT_REQUIRED=1
 }
 
+remove_recomputer_overlay_variants() {
+  local file="$1"
+  local expected="$2"
+  local tmp_file
+  tmp_file="${file}.tmp.$$"
+
+  awk -v expected_line="$expected" '
+    {
+      raw = $0
+      line = $0
+      sub(/\r$/, "", line)
+
+      trimmed = line
+      sub(/^[[:space:]]+/, "", trimmed)
+      sub(/[[:space:]]+$/, "", trimmed)
+
+      if (trimmed ~ /^#/) {
+        print raw
+        next
+      }
+
+      if (trimmed ~ /^dtoverlay=reComputer-R100x/ && trimmed != expected_line) {
+        changed = 1
+        next
+      }
+
+      print raw
+    }
+    END {
+      if (changed == 1) {
+        exit 10
+      }
+      exit 0
+    }
+  ' "$file" > "$tmp_file"
+
+  local rc=$?
+  if [ "$rc" -eq 10 ]; then
+    mv "$tmp_file" "$file"
+    log WARN "removed conflicting ${R100X_OVERLAY_NAME} dtoverlay lines"
+    REBOOT_REQUIRED=1
+    return 0
+  fi
+
+  rm -f "$tmp_file"
+  return 0
+}
+
+ensure_recomputer_r100x_overlay() {
+  local config_file="$1"
+  local board_profile="$2"
+  local target_dtbo="${MOUNT_POINT}/overlays/${R100X_OVERLAY_NAME}.dtbo"
+
+  mkdir -p "${WORK_DIR}" "${MOUNT_POINT}/overlays"
+
+  if [ ! -f "$target_dtbo" ]; then
+    if ! command -v wget >/dev/null 2>&1; then
+      log ERROR "wget is required to fetch ${R100X_OVERLAY_NAME} overlay source"
+      return 1
+    fi
+
+    if ! command -v dtc >/dev/null 2>&1; then
+      log ERROR "dtc is required to compile ${R100X_OVERLAY_NAME} overlay"
+      return 1
+    fi
+
+    log INFO "Downloading ${R100X_OVERLAY_NAME} overlay source"
+    if ! wget -q -O "${R100X_OVERLAY_DTS_FILE}" "${R100X_OVERLAY_DTS_URL}"; then
+      log ERROR "Failed to download ${R100X_OVERLAY_NAME} overlay source"
+      return 1
+    fi
+
+    # The DTS includes gpio binding macros not available in this add-on build context.
+    # Replace them with their numeric values before compiling.
+    sed -i '/dt-bindings\/gpio\/gpio.h/d' "${R100X_OVERLAY_DTS_FILE}" || true
+    sed -i 's/GPIO_ACTIVE_HIGH/0/g' "${R100X_OVERLAY_DTS_FILE}" || true
+    sed -i 's/GPIO_ACTIVE_LOW/1/g' "${R100X_OVERLAY_DTS_FILE}" || true
+
+    log INFO "Compiling ${R100X_OVERLAY_NAME}.dtbo"
+    if ! dtc -@ -I dts -O dtb -o "${R100X_OVERLAY_DTBO_FILE}" "${R100X_OVERLAY_DTS_FILE}" >/dev/null 2>&1; then
+      log ERROR "Failed to compile ${R100X_OVERLAY_NAME} overlay"
+      return 1
+    fi
+
+    cp "${R100X_OVERLAY_DTBO_FILE}" "$target_dtbo"
+    chmod 0644 "$target_dtbo"
+    log WARN "Installed ${R100X_OVERLAY_NAME}.dtbo to /boot/overlays"
+    REBOOT_REQUIRED=1
+  else
+    log INFO "${R100X_OVERLAY_NAME}.dtbo already present on boot partition"
+  fi
+
+  local expected_overlay_line="dtoverlay=${R100X_OVERLAY_NAME}"
+  if [ "$board_profile" = "v1_0" ]; then
+    expected_overlay_line="dtoverlay=${R100X_OVERLAY_NAME},uart2"
+  fi
+
+  remove_recomputer_overlay_variants "$config_file" "$expected_overlay_line"
+  ensure_config_line "$config_file" "$expected_overlay_line"
+  return 0
+}
+
 check_rs485_devices() {
   local strict_validation="$1"
   shift
@@ -664,6 +770,8 @@ run_cycle() {
 
   local enable_rs485
   enable_rs485="$(opt_bool enable_rs485 true)"
+  local enable_recomputer_r100x_overlay
+  enable_recomputer_r100x_overlay="$(opt_bool enable_recomputer_r100x_overlay true)"
   local board_version
   board_version="$(opt_str board_version v1_1)"
   local strict_profile_validation
@@ -702,6 +810,13 @@ run_cycle() {
   write_homeassistant_config_snippet "$mqtt_topic_prefix" "$emit_homeassistant_config_snippet"
 
   local config_file="${MOUNT_POINT}/config.txt"
+
+  if [ "$enable_recomputer_r100x_overlay" = "true" ]; then
+    ensure_recomputer_r100x_overlay "$config_file" "$active_profile" || \
+      log WARN "${R100X_OVERLAY_NAME} overlay installation/activation failed"
+  else
+    log INFO "${R100X_OVERLAY_NAME} overlay handling disabled by option"
+  fi
 
   if [ "$enable_rs485" = "true" ]; then
     configure_rs485 "$config_file" "$enable_rs485_de_control" "$active_profile" "$strict_profile_validation"

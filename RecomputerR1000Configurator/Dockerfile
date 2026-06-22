@@ -8,6 +8,6 @@ COPY server.py /
 WORKDIR /data
 
 RUN chmod a+x /run.sh \
-    && apk add --no-cache util-linux coreutils python3 procps py3-paho-mqtt
+    && apk add --no-cache util-linux coreutils python3 procps py3-paho-mqtt dtc wget
 
 CMD [ "/run.sh" ]

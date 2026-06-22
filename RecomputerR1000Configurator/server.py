@@ -30,6 +30,21 @@ GPIO_BUZZER_MAP = {
 
 GPIO_POWER_SUPPLY = 25
 
+LED_SYSFS_PATHS = {
+    'red': [
+        Path('/sys/class/leds/led-red/brightness'),
+        Path('/sys/class/leds/red/brightness'),
+    ],
+    'green': [
+        Path('/sys/class/leds/led-green/brightness'),
+        Path('/sys/class/leds/green/brightness'),
+    ],
+    'blue': [
+        Path('/sys/class/leds/led-blue/brightness'),
+        Path('/sys/class/leds/blue/brightness'),
+    ],
+}
+
 
 def read_options() -> dict:
     defaults = {
@@ -83,9 +98,20 @@ def gpio_value_path(gpio_num: int, direction: str) -> Path:
     return gpio_path / 'value'
 
 
+def led_sysfs_path(device_name: str) -> Path | None:
+    candidates = LED_SYSFS_PATHS.get(device_name, [])
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def device_path(device_kind: str, device_name: str) -> Path:
     profile = read_active_profile()
     if device_kind == 'led':
+        sysfs_led = led_sysfs_path(device_name)
+        if sysfs_led is not None:
+            return sysfs_led
         gpio_num = GPIO_LED_MAP.get((profile, device_name))
         if gpio_num is None:
             raise KeyError(device_kind)
@@ -113,6 +139,15 @@ def read_state(path: Path) -> tuple[bool, str]:
 def write_state(path: Path, state: str) -> tuple[bool, str]:
     if not path.exists():
         return False, 'path_missing'
+
+    # Some board LEDs are bound to kernel triggers until explicitly disabled.
+    trigger_path = path.parent / 'trigger'
+    if trigger_path.exists():
+        try:
+            trigger_path.write_text('none', encoding='utf-8')
+        except OSError:
+            pass
+
     try:
         path.write_text('1' if state == 'on' else '0', encoding='utf-8')
     except OSError as exc:

@@ -38,6 +38,9 @@ configuration:
   enable_rs485:
     name: RS485-Pruefung aktivieren
     description: Prueft und repariert die RS485-Boot-Konfiguration.
+  enable_recomputer_r100x_overlay:
+    name: reComputer R100x Overlay-Installation aktivieren
+    description: Laedt, kompiliert und aktiviert das offizielle Seeed reComputer-R100x Overlay beim Start.
   enable_rs485_de_control:
     name: RS485 DE/RE GPIO-Steuerung aktivieren
     description: Nur fuer v1.0: setzt DE/RE GPIOs in jedem Zyklus auf low.

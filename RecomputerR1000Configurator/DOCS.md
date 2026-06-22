@@ -18,6 +18,7 @@ Additionally, the startup verification logs:
 
 - RS485 boot configuration in `/mnt/boot/config.txt`
 - RS485 UART device availability (`/dev/ttyAMA2`, `/dev/ttyAMA3`, `/dev/ttyAMA5`)
+- USER LED sysfs paths when available (`/sys/class/leds/led-red`, `led-green`, `led-blue`)
 - USER LED GPIOs for v1.0 (`GPIO20`, `GPIO26`, `GPIO27`)
 - USER LED GPIOs for v1.1 (`GPIO581`, `GPIO582`, `GPIO583`)
 - Buzzer GPIOs (`GPIO21` for v1.0, `GPIO591` for v1.1)
@@ -37,6 +38,7 @@ Additionally, the startup verification logs:
 - `mqtt_enable_discovery` (bool): Publish Home Assistant MQTT discovery configuration automatically
 - `mqtt_auto_anonymous_fallback` (bool): If credential login fails, retry once without username/password
 - `enable_rs485` (bool): Enable RS485 checks and config repair
+- `enable_recomputer_r100x_overlay` (bool): Download/compile/install and activate `reComputer-R100x` overlay automatically
 - `enable_rs485_de_control` (bool): Set DE/RE GPIOs (6,17,24) to low output each cycle
 - `enable_led_check` (bool): Check LED sysfs availability
 - `led_self_test` (bool): Toggle RGB LEDs briefly each cycle
@@ -60,13 +62,40 @@ Additionally, the startup verification logs:
   - Tries to detect profile from available UART/GPIO signals
   - Falls back to `v1_1` if detection is inconclusive
 
+## v1.1 pin table
+
+If your board revision is the v1.1 layout, the following signal names are the expected ones from the board side:
+
+| Board label | Function |
+| --- | --- |
+| USER_LED_R | P05 |
+| USER_LED_G | P06 |
+| USER_LED_B | P07 |
+| IO_Buzzer_EN | P15 |
+| CM4_UART2_TXD | GPIO0 / ID_SD |
+| CM4_UART2_RXD | GPIO1 / ID_SC |
+| CM4_UART2_CTS | GPIO2 |
+| CM4_UART2_RTS | GPIO3 |
+| CM4_UART3_TXD | GPIO4 |
+| CM4_UART3_RXD | GPIO5 |
+| CM4_UART3_CTS | GPIO6 |
+| CM4_UART3_RTS | GPIO7 |
+| CM4_UART4_TXD | GPIO8 |
+| CM4_UART4_RXD | GPIO9 |
+| CM4_UART4_CTS | GPIO10 |
+| CM4_UART4_RTS | GPIO11 |
+
+For software, the important part is the real GPIO signal behind the label. If the label is correct but the electrical net is different, the add-on will still show the entity as unavailable.
+
 ## Notes
 
 - This add-on targets reComputer R1000 with CM4 and supports both v1.0 and v1.1 profiles.
 - UART overlay changes require a host reboot to become active.
+- If `enable_recomputer_r100x_overlay` is enabled, the add-on installs `reComputer-R100x.dtbo` to `/boot/overlays` and enables the corresponding `dtoverlay=` line in `config.txt`.
 - RS485 120R termination resistors are hardware-level and are not managed by this add-on.
 - `devicetree: true` is enabled so `/device-tree` can be logged for diagnostics.
 - The add-on connects to an MQTT broker and publishes LED, buzzer, and GPIO25 state/command topics.
+- LED runtime control first tries the legacy sysfs LED paths and only falls back to GPIO control if those paths are missing.
 
 ## Home Assistant integration
 
@@ -75,6 +104,15 @@ Additionally, the startup verification logs:
 - If MQTT discovery is enabled in Home Assistant and `mqtt_enable_discovery` is true, manual YAML may not be needed.
 - Otherwise, copy the generated MQTT block and adjust the MQTT integration in Home Assistant as required.
 - Connection behavior: if `mqtt_username` is set, the add-on tries authenticated connect first; with `mqtt_auto_anonymous_fallback=true`, it retries once without credentials when auth is rejected.
+
+## How to verify
+
+1. Set `board_version` to `v1_1` and restart the add-on.
+2. Open the add-on log and check for `Active board profile: v1_1`.
+3. Verify that the MQTT bridge starts and that the discovery topics are published.
+4. In Home Assistant, toggle `Rote LED`, `Gruene LED`, `Blaue LED`, and `Buzzer`.
+5. If a control does not work, inspect the add-on log for `Write failed` or `path_missing`.
+6. If the entity is still unavailable, the remaining problem is the physical GPIO mapping on the board, not MQTT.
 
 ## Troubleshooting boot partition selection
 

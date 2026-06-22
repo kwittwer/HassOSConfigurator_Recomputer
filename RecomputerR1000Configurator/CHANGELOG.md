@@ -1,10 +1,17 @@
 # Changelog
 
+## 0.6.4
+
+- Added automatic install/activation of Seeed `reComputer-R100x` overlay from within the add-on.
+- Added new option `enable_recomputer_r100x_overlay` to control auto-overlay handling.
+- Added runtime compilation path for `reComputer-R100x.dtbo` and automatic `dtoverlay=` config repair.
+
 ## 0.6.3
 
 - Changed boot repair to run once at startup instead of repeating every 60 seconds.
 - Switched LED and buzzer control to GPIO mappings for v1.0 and v1.1 profiles.
 - Removed periodic MQTT state spam so the bridge now stays event-driven after startup.
+- Restored legacy LED sysfs support (`/sys/class/leds/led-red|green|blue`) with GPIO fallback.
 
 ## 0.6.2
 
