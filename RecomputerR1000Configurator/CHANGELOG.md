@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.2
+
+- Added automatic MQTT reconnect fallback without credentials when auth is rejected
+- Added `mqtt_auto_anonymous_fallback` option for controlling this behavior
+- Added clearer MQTT connection/auth failure logs
+
 ## 0.6.1
 
 - Added MQTT binary sensor publishing and discovery for GPIO25 power supply status

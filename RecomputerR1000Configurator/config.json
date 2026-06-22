@@ -1,6 +1,6 @@
 {
   "name": "reComputer R1000 Configurator",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "slug": "recomputer_r1000_configurator_addon",
   "description": "Boot-time verify and repair for reComputer R1000 RS485, LED and buzzer setup.",
   "arch": ["armhf", "armv7", "aarch64"],
@@ -27,6 +27,7 @@
     "mqtt_topic_prefix": "recomputer_r1000",
     "mqtt_discovery_prefix": "homeassistant",
     "mqtt_enable_discovery": true,
+    "mqtt_auto_anonymous_fallback": true,
     "enable_rs485": true,
     "enable_rs485_de_control": false,
     "enable_led_check": true,
@@ -47,6 +48,7 @@
     "mqtt_topic_prefix": "str",
     "mqtt_discovery_prefix": "str",
     "mqtt_enable_discovery": "bool",
+    "mqtt_auto_anonymous_fallback": "bool",
     "enable_rs485": "bool",
     "enable_rs485_de_control": "bool",
     "enable_led_check": "bool",

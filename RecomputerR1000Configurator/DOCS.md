@@ -34,6 +34,7 @@ Additionally, each verification cycle now logs:
 - `mqtt_topic_prefix` (str): Base MQTT topic prefix, for example `recomputer_r1000`
 - `mqtt_discovery_prefix` (str): MQTT discovery prefix, usually `homeassistant`
 - `mqtt_enable_discovery` (bool): Publish Home Assistant MQTT discovery configuration automatically
+- `mqtt_auto_anonymous_fallback` (bool): If credential login fails, retry once without username/password
 - `enable_rs485` (bool): Enable RS485 checks and config repair
 - `enable_rs485_de_control` (bool): Set DE/RE GPIOs (6,17,24) to low output each cycle
 - `enable_led_check` (bool): Check LED sysfs availability
@@ -73,6 +74,7 @@ Additionally, each verification cycle now logs:
 - Copy that block into your Home Assistant `configuration.yaml`.
 - If MQTT discovery is enabled in Home Assistant and `mqtt_enable_discovery` is true, manual YAML may not be needed.
 - Otherwise, copy the generated MQTT block and adjust the MQTT integration in Home Assistant as required.
+- Connection behavior: if `mqtt_username` is set, the add-on tries authenticated connect first; with `mqtt_auto_anonymous_fallback=true`, it retries once without credentials when auth is rejected.
 
 ## Troubleshooting boot partition selection
 

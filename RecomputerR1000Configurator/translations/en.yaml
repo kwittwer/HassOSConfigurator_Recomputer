@@ -32,6 +32,9 @@ configuration:
   mqtt_enable_discovery:
     name: Enable MQTT discovery
     description: Publish Home Assistant MQTT discovery config automatically.
+  mqtt_auto_anonymous_fallback:
+    name: Auto anonymous fallback
+    description: If credential login fails, retry MQTT connection once without username/password.
   enable_rs485:
     name: Enable RS485 checks
     description: Verify and repair RS485 boot configuration.

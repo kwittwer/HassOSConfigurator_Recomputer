@@ -32,6 +32,9 @@ configuration:
   mqtt_enable_discovery:
     name: MQTT-Discovery aktivieren
     description: Veröffentlicht Home-Assistant MQTT-Discovery-Konfiguration automatisch.
+  mqtt_auto_anonymous_fallback:
+    name: Automatischer anonymer Fallback
+    description: Wenn Login mit Zugangsdaten fehlschlaegt, wird einmal ohne Benutzername/Passwort erneut verbunden.
   enable_rs485:
     name: RS485-Pruefung aktivieren
     description: Prueft und repariert die RS485-Boot-Konfiguration.

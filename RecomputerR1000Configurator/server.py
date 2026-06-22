@@ -3,6 +3,7 @@ import json
 import signal
 import sys
 import time
+import threading
 from pathlib import Path
 
 import paho.mqtt.client as mqtt
@@ -23,6 +24,7 @@ def read_options() -> dict:
         'mqtt_topic_prefix': 'recomputer_r1000',
         'mqtt_discovery_prefix': 'homeassistant',
         'mqtt_enable_discovery': True,
+        'mqtt_auto_anonymous_fallback': True,
     }
     try:
         loaded = json.loads(OPTIONS_FILE.read_text(encoding='utf-8'))
@@ -143,23 +145,34 @@ def discovery_payload(topic_prefix: str, device_kind: str, device_name: str) -> 
 
 
 class Bridge:
-    def __init__(self):
-        self.options = read_options()
+    def __init__(self, options: dict, use_auth: bool):
+        self.options = options
+        self.use_auth = use_auth
         self.topic_prefix = self.options['mqtt_topic_prefix']
         self.discovery_prefix = self.options['mqtt_discovery_prefix']
         self.discovery_enabled = bool(self.options['mqtt_enable_discovery'])
+        self.connect_event = threading.Event()
+        self.connect_rc = None
         self.client = mqtt.Client(client_id='recomputer-r1000-configurator', clean_session=True)
-        username = self.options.get('mqtt_username', '')
-        password = self.options.get('mqtt_password', '')
-        if username:
+        username = (self.options.get('mqtt_username', '') or '').strip()
+        password = self.options.get('mqtt_password', '') or ''
+        if self.use_auth and username:
             self.client.username_pw_set(username, password)
         self.client.will_set(f'{self.topic_prefix}/status', payload='offline', retain=True)
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
 
     def connect(self):
+        self.connect_event.clear()
+        self.connect_rc = None
         self.client.connect(self.options['mqtt_host'], int(self.options['mqtt_port']), 60)
         self.client.loop_start()
+
+    def wait_for_connect(self, timeout_sec: float = 8.0) -> int:
+        self.connect_event.wait(timeout=timeout_sec)
+        if self.connect_rc is None:
+            return -1
+        return int(self.connect_rc)
 
     def stop(self):
         self.client.publish(f'{self.topic_prefix}/status', 'offline', retain=True)
@@ -167,7 +180,11 @@ class Bridge:
         self.client.disconnect()
 
     def on_connect(self, client, userdata, flags, rc):
+        self.connect_rc = rc
+        self.connect_event.set()
         print(f'[MQTT] Connected with rc={rc}')
+        if rc != 0:
+            return
         client.publish(f'{self.topic_prefix}/status', 'online', retain=True)
         self.publish_discovery()
         self.subscribe_commands()
@@ -234,8 +251,34 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
 
-    bridge = Bridge()
+    options = read_options()
+    username = (options.get('mqtt_username', '') or '').strip()
+    use_auth_first = bool(username)
+    auto_fallback = bool(options.get('mqtt_auto_anonymous_fallback', True))
+
+    bridge = Bridge(options, use_auth=use_auth_first)
     bridge.connect()
+    rc = bridge.wait_for_connect()
+
+    if rc != 0:
+        if rc == 5:
+            print('[MQTT] Broker rejected credentials (rc=5).')
+        elif rc == -1:
+            print('[MQTT] Connection timeout while waiting for CONNACK.')
+        else:
+            print(f'[MQTT] Initial connect failed rc={rc}.')
+
+        if use_auth_first and auto_fallback:
+            print('[MQTT] Retrying once without credentials (anonymous fallback enabled).')
+            bridge.stop()
+            bridge = Bridge(options, use_auth=False)
+            bridge.connect()
+            rc = bridge.wait_for_connect()
+
+    if rc != 0:
+        print('[MQTT] Could not establish MQTT session. Please verify host/port and credentials in add-on options.')
+        sys.exit(2)
+
     print('[MQTT] Bridge started')
     try:
         while RUNNING:
