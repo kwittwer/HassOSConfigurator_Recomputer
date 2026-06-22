@@ -11,6 +11,8 @@ Additionally, each verification cycle now logs:
 - the current content of `config.txt` (with truncation)
 - a tree dump of `/data`
 - a tree dump of `/device-tree` (if present)
+- an optional Home Assistant MQTT YAML snippet for LED and buzzer entities
+- an optional Home Assistant MQTT YAML snippet for LED, buzzer, and GPIO25 power supply sensor
 
 ### Managed areas
 
@@ -24,6 +26,14 @@ Additionally, each verification cycle now logs:
 - `board_version` (list: v1_0|v1_1|auto): Select the board profile for pin/UART mapping
 - `strict_profile_validation` (bool): Treat missing profile UART devices as errors in logs
 - `boot_partition_override` (str): Optional manual boot partition path, for example `/dev/nvme0n1p1` or `/dev/mmcblk0p1`
+- `emit_homeassistant_config_snippet` (bool): Write and log a copy-ready Home Assistant YAML block
+- `mqtt_host` (str): MQTT broker hostname, for example `core-mosquitto`
+- `mqtt_port` (port): MQTT broker TCP port, for example `1883`
+- `mqtt_username` (str): Optional MQTT username
+- `mqtt_password` (password): Optional MQTT password
+- `mqtt_topic_prefix` (str): Base MQTT topic prefix, for example `recomputer_r1000`
+- `mqtt_discovery_prefix` (str): MQTT discovery prefix, usually `homeassistant`
+- `mqtt_enable_discovery` (bool): Publish Home Assistant MQTT discovery configuration automatically
 - `enable_rs485` (bool): Enable RS485 checks and config repair
 - `enable_rs485_de_control` (bool): Set DE/RE GPIOs (6,17,24) to low output each cycle
 - `enable_led_check` (bool): Check LED sysfs availability
@@ -54,6 +64,15 @@ Additionally, each verification cycle now logs:
 - UART overlay changes require a host reboot to become active.
 - RS485 120R termination resistors are hardware-level and are not managed by this add-on.
 - `devicetree: true` is enabled so `/device-tree` can be logged for diagnostics.
+- The add-on connects to an MQTT broker and publishes LED and buzzer state/command topics.
+- The add-on also publishes GPIO25 as a power-supply `binary_sensor` topic.
+
+## Home Assistant integration
+
+- The add-on writes a generated YAML file to `/data/homeassistant_config_snippet.yaml`.
+- Copy that block into your Home Assistant `configuration.yaml`.
+- If MQTT discovery is enabled in Home Assistant and `mqtt_enable_discovery` is true, manual YAML may not be needed.
+- Otherwise, copy the generated MQTT block and adjust the MQTT integration in Home Assistant as required.
 
 ## Troubleshooting boot partition selection
 

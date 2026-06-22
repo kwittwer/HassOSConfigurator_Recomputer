@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.1
+
+- Added MQTT binary sensor publishing and discovery for GPIO25 power supply status
+- Added generated Home Assistant MQTT `binary_sensor` block for `Versorgungsspannung ReComputer`
+
+## 0.5.0
+
+- Replaced REST control approach with MQTT bridge control for red/green/blue LED and buzzer
+- Added generated MQTT `configuration.yaml` copy block at `/data/homeassistant_config_snippet.yaml`
+- Added MQTT broker, topic, and discovery options
+
 ## 0.4.2
 
 - Added automatic repair for malformed concatenated lines like `gpu_mem=16dtoverlay=uart2,ctsrts`

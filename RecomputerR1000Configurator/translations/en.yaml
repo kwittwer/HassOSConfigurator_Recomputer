@@ -8,6 +8,30 @@ configuration:
   boot_partition_override:
     name: Boot partition override
     description: Optional manual boot partition path, for example /dev/nvme0n1p1 or /dev/mmcblk0p1.
+  emit_homeassistant_config_snippet:
+    name: Emit Home Assistant config snippet
+    description: Write and log a ready-to-copy Home Assistant MQTT YAML block for LED and buzzer entities.
+  mqtt_host:
+    name: MQTT host
+    description: MQTT broker hostname, for example core-mosquitto.
+  mqtt_port:
+    name: MQTT port
+    description: MQTT broker TCP port.
+  mqtt_username:
+    name: MQTT username
+    description: Optional MQTT username.
+  mqtt_password:
+    name: MQTT password
+    description: Optional MQTT password.
+  mqtt_topic_prefix:
+    name: MQTT topic prefix
+    description: Base topic used for LED and buzzer state and command topics.
+  mqtt_discovery_prefix:
+    name: MQTT discovery prefix
+    description: Home Assistant MQTT discovery prefix, usually homeassistant.
+  mqtt_enable_discovery:
+    name: Enable MQTT discovery
+    description: Publish Home Assistant MQTT discovery config automatically.
   enable_rs485:
     name: Enable RS485 checks
     description: Verify and repair RS485 boot configuration.
