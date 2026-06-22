@@ -46,6 +46,57 @@ opt_str() {
   fi
 }
 
+dump_file_to_log() {
+  local file_path="$1"
+  local max_lines="$2"
+
+  if [ ! -f "$file_path" ]; then
+    log WARN "File dump skipped, file not found: ${file_path}"
+    return 0
+  fi
+
+  log INFO "----- BEGIN FILE DUMP: ${file_path} -----"
+  awk -v max_lines="$max_lines" '
+    NR <= max_lines {
+      print "[FILE] " $0
+    }
+    NR == (max_lines + 1) {
+      print "[FILE] ... output truncated ..."
+    }
+  ' "$file_path" >&2
+  log INFO "----- END FILE DUMP: ${file_path} -----"
+}
+
+dump_tree_to_log() {
+  local dir_path="$1"
+  local max_depth="$2"
+  local max_lines="$3"
+
+  if [ ! -e "$dir_path" ]; then
+    log WARN "Tree dump skipped, path not found: ${dir_path}"
+    return 0
+  fi
+
+  log INFO "----- BEGIN TREE DUMP: ${dir_path} (depth=${max_depth}) -----"
+  find "$dir_path" -maxdepth "$max_depth" 2>/dev/null | sort | awk -v max_lines="$max_lines" '
+    NR <= max_lines {
+      print "[TREE] " $0
+    }
+    NR == (max_lines + 1) {
+      print "[TREE] ... output truncated ..."
+    }
+  ' >&2
+  log INFO "----- END TREE DUMP: ${dir_path} -----"
+}
+
+emit_debug_dumps() {
+  local config_file="$1"
+
+  dump_file_to_log "$config_file" 300
+  dump_tree_to_log /data 4 400
+  dump_tree_to_log /device-tree 4 400
+}
+
 cleanup_mount() {
   if mountpoint -q "${MOUNT_POINT}"; then
     umount "${MOUNT_POINT}" >/dev/null 2>&1 || true
@@ -441,6 +492,8 @@ run_cycle() {
   else
     log INFO "RS485 check disabled by option"
   fi
+
+  emit_debug_dumps "$config_file"
 
   cleanup_mount
 

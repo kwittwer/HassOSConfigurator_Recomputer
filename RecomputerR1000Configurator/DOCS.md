@@ -6,6 +6,12 @@ This add-on runs automatically at host boot and periodically checks if required 
 
 This version adds a board profile selector in the add-on UI so you can choose between reComputer R1000 v1.0 and v1.1 behavior.
 
+Additionally, each verification cycle now logs:
+
+- the current content of `config.txt` (with truncation)
+- a tree dump of `/data`
+- a tree dump of `/device-tree` (if present)
+
 ### Managed areas
 
 - RS485 boot configuration in `/mnt/boot/config.txt`
@@ -47,6 +53,7 @@ This version adds a board profile selector in the add-on UI so you can choose be
 - This add-on targets reComputer R1000 with CM4 and supports both v1.0 and v1.1 profiles.
 - UART overlay changes require a host reboot to become active.
 - RS485 120R termination resistors are hardware-level and are not managed by this add-on.
+- `devicetree: true` is enabled so `/device-tree` can be logged for diagnostics.
 
 ## Troubleshooting boot partition selection
 

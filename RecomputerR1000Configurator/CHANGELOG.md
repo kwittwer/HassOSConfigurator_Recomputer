@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0
+
+- Added `config.txt` content dump to add-on logs each verification cycle
+- Added tree dump logging for `/data` and `/device-tree` (with truncation limits)
+- Enabled `devicetree: true` in add-on manifest for `/device-tree` diagnostics
+
 ## 0.3.1
 
 - Fixed profile/partition variable contamination caused by log output on stdout
