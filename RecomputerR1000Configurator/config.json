@@ -1,6 +1,6 @@
 {
   "name": "reComputer R1000 Configurator",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "slug": "recomputer_r1000_configurator_addon",
   "description": "Boot-time verify and repair for reComputer R1000 RS485, LED and buzzer setup.",
   "arch": ["armhf", "armv7", "aarch64"],
@@ -13,6 +13,7 @@
   "apparmor": false,
   "privileged": ["SYS_ADMIN"],
   "full_access": true,
+  "homeassistant_api": true,
   "url": "https://wiki.seeedstudio.com/recomputer_r/",
   "options": {
     "board_version": "v1_1",

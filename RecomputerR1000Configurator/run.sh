@@ -12,6 +12,9 @@ readonly R100X_OVERLAY_DTS_VENDOR_FILE="/opt/vendor/seeed/overlays/rpi/reCompute
 readonly R100X_OVERLAY_DTBO_VENDOR_FILE="/opt/vendor/seeed/overlays/rpi/reComputer-R100x.dtbo"
 readonly R100X_OVERLAY_DTS_FILE="${WORK_DIR}/${R100X_OVERLAY_NAME}-overlay.dts"
 readonly R100X_OVERLAY_DTBO_FILE="${WORK_DIR}/${R100X_OVERLAY_NAME}.dtbo"
+readonly HASSOS_BOOT_LABEL="hassos-boot"
+readonly REBOOT_MARKER_FILE="/data/reboot_pending"
+readonly REBOOT_NOTIFICATION_ID="recomputer_r1000_reboot_required"
 
 REBOOT_REQUIRED=0
 
@@ -184,22 +187,86 @@ derive_boot_partition_from_root_device() {
   return 1
 }
 
-can_mount_boot_partition() {
+ensure_block_node() {
   local dev="$1"
 
-  [ -b "$dev" ] || return 1
+  [ -b "$dev" ] && return 0
+
+  local sys_dev="/sys/class/block/$(basename "$dev")/dev"
+  if [ ! -r "$sys_dev" ]; then
+    log INFO "Skipping ${dev}: not known to the kernel"
+    return 1
+  fi
+
+  local majmin
+  majmin="$(cat "$sys_dev")"
+  if mknod "$dev" b "${majmin%%:*}" "${majmin##*:}" 2>/dev/null; then
+    log WARN "Created missing block device node ${dev} (${majmin})"
+    return 0
+  fi
+
+  log WARN "Block device node ${dev} missing in container and mknod failed (${majmin})"
+  return 1
+}
+
+can_mount_boot_partition() {
+  local dev="$1"
+  local vfat_only="${2:-false}"
+
+  ensure_block_node "$dev" || return 1
 
   cleanup_mount
-  if ! mount "$dev" "${MOUNT_POINT}" >/dev/null 2>&1; then
-    return 1
+  local err_vfat err_auto
+  if ! err_vfat="$(mount -t vfat "$dev" "${MOUNT_POINT}" 2>&1)"; then
+    if [ "$vfat_only" = "true" ]; then
+      return 1
+    fi
+    if ! err_auto="$(mount "$dev" "${MOUNT_POINT}" 2>&1)"; then
+      log WARN "mount ${dev} failed (vfat: ${err_vfat:-no message}; auto: ${err_auto:-no message})"
+      return 1
+    fi
   fi
 
   if [ -f "${MOUNT_POINT}/config.txt" ]; then
     return 0
   fi
 
+  log WARN "${dev} mounted but contains no config.txt"
   cleanup_mount
   return 1
+}
+
+find_boot_partition_by_label() {
+  if [ -e "/dev/disk/by-label/${HASSOS_BOOT_LABEL}" ]; then
+    readlink -f "/dev/disk/by-label/${HASSOS_BOOT_LABEL}"
+    return 0
+  fi
+
+  local dev
+  dev="$(blkid -L "${HASSOS_BOOT_LABEL}" 2>/dev/null)"
+  if [ -n "$dev" ]; then
+    echo "$dev"
+    return 0
+  fi
+
+  return 1
+}
+
+log_boot_partition_diagnostics() {
+  log INFO "----- BEGIN BOOT PARTITION DIAGNOSTICS -----"
+  {
+    echo "[DIAG] /proc/partitions:"
+    sed 's/^/[DIAG]   /' /proc/partitions 2>&1
+    echo "[DIAG] block device nodes:"
+    ls -l /dev/nvme* /dev/mmcblk* /dev/sd* 2>&1 | sed 's/^/[DIAG]   /'
+    echo "[DIAG] blkid:"
+    blkid 2>&1 | sed 's/^/[DIAG]   /'
+    echo "[DIAG] capabilities:"
+    grep '^Cap' /proc/self/status 2>&1 | sed 's/^/[DIAG]   /'
+    echo "[DIAG] boot-related mounts:"
+    grep -i boot /proc/mounts 2>&1 | sed 's/^/[DIAG]   /'
+  } >&2
+  log INFO "----- END BOOT PARTITION DIAGNOSTICS -----"
 }
 
 find_boot_partition() {
@@ -227,6 +294,16 @@ find_boot_partition() {
     log ERROR "Override partition is invalid or has no config.txt: ${override_partition}"
   fi
 
+  local label_dev
+  if label_dev="$(find_boot_partition_by_label)"; then
+    log INFO "Found partition with label ${HASSOS_BOOT_LABEL}: ${label_dev}"
+    if can_mount_boot_partition "$label_dev"; then
+      echo "$label_dev"
+      return 0
+    fi
+    log WARN "Labeled boot partition is not usable: ${label_dev}"
+  fi
+
   local root_dev
   if root_dev="$(resolve_root_device_from_cmdline)"; then
     log INFO "Detected root device from /proc/cmdline: ${root_dev}"
@@ -246,6 +323,16 @@ find_boot_partition() {
   for dev in "${candidates[@]}"; do
     if can_mount_boot_partition "$dev"; then
       echo "${dev}"
+      return 0
+    fi
+  done
+
+  local name
+  for name in $(awk 'NR > 2 && $4 !~ /^(loop|ram|zram)/ { print $4 }' /proc/partitions 2>/dev/null); do
+    [ -e "/sys/class/block/${name}/partition" ] || continue
+    if can_mount_boot_partition "/dev/${name}" true; then
+      log INFO "Found boot partition by scanning vfat partitions: /dev/${name}"
+      echo "/dev/${name}"
       return 0
     fi
   done
@@ -823,6 +910,7 @@ run_cycle() {
   local boot_partition
   if ! boot_partition="$(find_boot_partition "$boot_partition_override")"; then
     log ERROR "No boot partition with config.txt found. Check protection mode and SYS_ADMIN/full_access permissions."
+    log_boot_partition_diagnostics
     return 1
   fi
 
@@ -880,12 +968,89 @@ run_cycle() {
   return 0
 }
 
+current_boot_id() {
+  cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo "unknown"
+}
+
+ha_notification_service() {
+  local service="$1"
+  local payload="$2"
+
+  if [ -z "${SUPERVISOR_TOKEN:-}" ]; then
+    log WARN "SUPERVISOR_TOKEN not available; cannot send Home Assistant notification"
+    return 1
+  fi
+
+  local attempt status
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    status="$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+      -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+      -H "Content-Type: application/json" \
+      -d "$payload" \
+      "http://supervisor/core/api/services/persistent_notification/${service}" 2>/dev/null)"
+    case "$status" in
+      2*) return 0 ;;
+    esac
+    log WARN "persistent_notification.${service} failed (HTTP ${status:-none}), attempt ${attempt}/10"
+    sleep 15
+  done
+
+  return 1
+}
+
+ha_notify_reboot_required() {
+  local payload
+  payload="$(jq -n \
+    --arg id "$REBOOT_NOTIFICATION_ID" \
+    --arg title "reComputer R1000: Neustart erforderlich" \
+    --arg message "Der reComputer R1000 Configurator hat die Boot-Konfiguration (config.txt / Overlays) angepasst. Bitte den Host neu starten (Einstellungen → System → Neustart → System neu starten), damit die Änderungen aktiv werden." \
+    '{notification_id: $id, title: $title, message: $message}')"
+
+  if ha_notification_service create "$payload"; then
+    log INFO "Home Assistant notification sent: host reboot required"
+  fi
+}
+
+ha_dismiss_reboot_notification() {
+  local payload
+  payload="$(jq -n --arg id "$REBOOT_NOTIFICATION_ID" '{notification_id: $id}')"
+
+  if ha_notification_service dismiss "$payload"; then
+    log INFO "Home Assistant reboot notification dismissed"
+  fi
+}
+
+clear_marker_if_host_rebooted() {
+  [ -f "${REBOOT_MARKER_FILE}" ] || return 0
+
+  if [ "$(cat "${REBOOT_MARKER_FILE}")" != "$(current_boot_id)" ]; then
+    log INFO "Host reboot detected since last boot config change"
+    rm -f "${REBOOT_MARKER_FILE}"
+    ha_dismiss_reboot_notification
+  fi
+}
+
+handle_reboot_notification() {
+  if [ "$REBOOT_REQUIRED" -eq 1 ]; then
+    current_boot_id > "${REBOOT_MARKER_FILE}"
+  fi
+
+  if [ -f "${REBOOT_MARKER_FILE}" ]; then
+    log WARN "Host reboot still pending"
+    ha_notify_reboot_required
+  fi
+}
+
 main() {
   if [ ! -f "${OPTIONS_FILE}" ]; then
     log WARN "options.json not found yet, using defaults"
   fi
 
+  clear_marker_if_host_rebooted
+
   run_cycle || true
+
+  handle_reboot_notification
 
   log INFO "Boot verification finished; idle loop active"
   while true; do

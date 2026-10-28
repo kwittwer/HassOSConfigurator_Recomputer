@@ -92,6 +92,7 @@ For software, the important part is the real GPIO signal behind the label. If th
 
 - This add-on no longer includes MQTT runtime publishing.
 - It focuses on boot configuration repair and hardware readiness checks for RS485, LEDs, and buzzer.
+- When boot configuration changes require a host reboot, a persistent notification (`recomputer_r1000_reboot_required`) is created in Home Assistant. It is shown again on every add-on start until the host is rebooted (tracked via kernel boot ID in `/data/reboot_pending`) and is dismissed automatically afterwards.
 
 ## How to verify
 
@@ -105,6 +106,7 @@ For software, the important part is the real GPIO signal behind the label. If th
 - If both eMMC and NVMe are present, automatic partition detection can select the wrong `config.txt`.
 - Set `boot_partition_override` to the active boot partition explicitly.
 - Typical values on your hardware are `/dev/nvme0n1p1` or `/dev/mmcblk0p1`.
+- If no boot partition is found, the log contains a `BOOT PARTITION DIAGNOSTICS` block and the exact `mount` error for each attempted partition.
 
 ## Rollback
 

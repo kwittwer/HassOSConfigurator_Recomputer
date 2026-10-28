@@ -50,8 +50,9 @@ command_line:
       unique_id: green_led_switch
       command_on: "sh -c 'echo none > /sys/class/leds/led-green/trigger 2>/dev/null; echo 1 > /sys/class/leds/led-green/brightness'"
       command_off: "sh -c 'echo none > /sys/class/leds/led-green/trigger 2>/dev/null; echo 0 > /sys/class/leds/led-green/brightness'"
-      command_state: "cat /sys/class/leds/led-green/brightness"
-      value_template: "{{ value | trim == '1' }}"
+      command_state: "sh -c 'cat /sys/class/leds/led-green/brightness 2>/dev/null || echo 0'"
+      value_template: "{{ value | trim | int(0) > 0 }}"
+      scan_interval: 2
       icon: mdi:led-on
 
   - switch:
@@ -59,8 +60,9 @@ command_line:
       unique_id: red_led_switch
       command_on: "sh -c 'echo none > /sys/class/leds/led-red/trigger 2>/dev/null; echo 1 > /sys/class/leds/led-red/brightness'"
       command_off: "sh -c 'echo none > /sys/class/leds/led-red/trigger 2>/dev/null; echo 0 > /sys/class/leds/led-red/brightness'"
-      command_state: "cat /sys/class/leds/led-red/brightness"
-      value_template: "{{ value | trim == '1' }}"
+      command_state: "sh -c 'cat /sys/class/leds/led-red/brightness 2>/dev/null || echo 0'"
+      value_template: "{{ value | trim | int(0) > 0 }}"
+      scan_interval: 2
       icon: mdi:led-on
 
   - switch:
@@ -68,8 +70,9 @@ command_line:
       unique_id: blue_led_switch
       command_on: "sh -c 'echo none > /sys/class/leds/led-blue/trigger 2>/dev/null; echo 1 > /sys/class/leds/led-blue/brightness'"
       command_off: "sh -c 'echo none > /sys/class/leds/led-blue/trigger 2>/dev/null; echo 0 > /sys/class/leds/led-blue/brightness'"
-      command_state: "cat /sys/class/leds/led-blue/brightness"
-      value_template: "{{ value | trim == '1' }}"
+      command_state: "sh -c 'cat /sys/class/leds/led-blue/brightness 2>/dev/null || echo 0'"
+      value_template: "{{ value | trim | int(0) > 0 }}"
+      scan_interval: 2
       icon: mdi:led-on
 
   - switch:
@@ -77,10 +80,55 @@ command_line:
       unique_id: recomputer_buzzer_switch
       command_on: "sh -c 'echo 1 > /sys/class/gpio/gpio591/value'"
       command_off: "sh -c 'echo 0 > /sys/class/gpio/gpio591/value'"
-      command_state: "cat /sys/class/gpio/gpio591/value"
-      value_template: "{{ value | trim == '1' }}"
+      command_state: "sh -c 'cat /sys/class/gpio/gpio591/value 2>/dev/null || echo 0'"
+      value_template: "{{ value | trim | int(0) > 0 }}"
+      scan_interval: 2
       icon: mdi:bullhorn-outline
 ```
+
+## Dashboard Beispiel (farbige LED Tiles)
+
+Fuer eine farbige Anzeige im Dashboard kannst du folgende Tile Cards verwenden. Die Farbe wird im eingeschalteten Zustand angezeigt.
+
+```yaml
+type: grid
+columns: 2
+square: false
+cards:
+  - type: tile
+    entity: switch.gruene_led
+    name: Gruene LED
+    icon: mdi:led-on
+    color: green
+    tap_action:
+      action: toggle
+
+  - type: tile
+    entity: switch.rote_led
+    name: Rote LED
+    icon: mdi:led-on
+    color: red
+    tap_action:
+      action: toggle
+
+  - type: tile
+    entity: switch.blaue_led
+    name: Blaue LED
+    icon: mdi:led-on
+    color: blue
+    tap_action:
+      action: toggle
+
+  - type: tile
+    entity: switch.buzzer
+    name: Buzzer
+    icon: mdi:bullhorn-outline
+    color: amber
+    tap_action:
+      action: toggle
+```
+
+Hinweis: Falls die Entity-IDs bei dir abweichen, passe die Werte unter `entity:` entsprechend an.
 
 Hinweis: Der Buzzer-Pfad oben ist fuer v1.1 (GPIO591). Bei v1.0 stattdessen GPIO21 verwenden.
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.1
+
+- Boot partition lookup now tries the `hassos-boot` label first, then the root-derived partition, fixed candidates and finally a scan of all vfat partitions.
+- Missing block device nodes are recreated from `/sys/class/block` via `mknod`.
+- Mount errors are no longer hidden; a diagnostic dump (partitions, device nodes, blkid, capabilities, mounts) is logged when no boot partition is found.
+- Added Home Assistant persistent notification when a host reboot is required; it is repeated on add-on restarts until the host has actually been rebooted and dismissed afterwards.
+- Enabled `homeassistant_api` for notifications.
+
 ## 0.7.0
 
 - Removed MQTT bridge runtime from the add-on.
